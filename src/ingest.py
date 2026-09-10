@@ -84,6 +84,7 @@ class IngestionEngine:
         fact_records: List[DailyFactRecord] = []
         mandis_to_register: Dict[str, MandiRecord] = {}
         comm_id = commodity.lower().strip()
+        self.warehouse.ensure_commodity(comm_id)
 
         for raw in raw_records:
             resolved = self.registry.resolve(raw.raw_market, raw.raw_state, raw.raw_district)

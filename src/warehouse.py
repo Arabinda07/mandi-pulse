@@ -21,6 +21,8 @@ class Warehouse:
         CommodityRecord("tomato", "Tomato", "vegetable", 1, "quintal", 0.57),
         CommodityRecord("onion", "Onion", "vegetable", 1, "quintal", 0.64),
         CommodityRecord("potato", "Potato", "vegetable", 1, "quintal", 1.00),
+        CommodityRecord("garlic", "Garlic", "spice/vegetable", 1, "quintal", 0.25),
+        CommodityRecord("ginger", "Ginger (Green)", "spice/vegetable", 1, "quintal", 0.20),
         CommodityRecord("chana_dal", "Gram Dal (Chana)", "pulse", 1, "quintal", 0.72),
         CommodityRecord("tur_arhar_dal", "Tur/Arhar Dal", "pulse", 1, "quintal", 0.79),
         CommodityRecord("wheat", "Wheat", "cereal", 1, "quintal", 3.03),
@@ -207,6 +209,16 @@ class Warehouse:
                     (commodity_id, name, category, tier, unit, cpi_weight)
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, (c.commodity_id, c.name, c.category, c.tier, c.unit, c.cpi_weight))
+
+    def ensure_commodity(self, commodity_id: str, name: Optional[str] = None, category: str = "vegetable") -> None:
+        """Ensure a commodity is present in commodity_registry to satisfy foreign keys."""
+        display_name = name or commodity_id.replace("_", " ").title()
+        with self._get_connection() as conn:
+            conn.execute("""
+                INSERT OR IGNORE INTO commodity_registry 
+                (commodity_id, name, category, tier, unit, cpi_weight)
+                VALUES (?, ?, ?, 1, 'quintal', 0.50)
+            """, (commodity_id, display_name, category))
 
     def record_mandis(self, mandis: List[MandiRecord]) -> None:
         """Upsert canonical Mandi records."""

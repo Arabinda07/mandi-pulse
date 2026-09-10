@@ -37,7 +37,11 @@ class MandiWeatherAdapter:
         }
 
         try:
+            # Try archive endpoint first
             resp = requests.get(self.ARCHIVE_URL, params=params, timeout=15)
+            if resp.status_code != 200:
+                # If archive fails (e.g. current/future date), fallback to forecast API
+                resp = requests.get(self.FORECAST_URL, params=params, timeout=15)
             resp.raise_for_status()
             data = resp.json().get("daily", {})
             return {
@@ -46,5 +50,5 @@ class MandiWeatherAdapter:
                 "temperature_max_c": data.get("temperature_2m_max", []),
             }
         except Exception as e:
-            logger.error("Failed to fetch weather for coordinates (%s, %s): %s", latitude, longitude, e)
+            logger.warning("Failed to fetch weather for coordinates (%s, %s): %s", latitude, longitude, e)
             return {"dates": [], "precipitation_mm": [], "temperature_max_c": []}
