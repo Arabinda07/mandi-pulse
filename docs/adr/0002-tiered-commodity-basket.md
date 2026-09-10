@@ -1,0 +1,3 @@
+# 2. Tiered commodity ingestion architecture
+
+We need to ingest commodity market data from Agmarknet without hitting API quotas or drowning the database in sparse, low-liquidity commodities. We decided to split ingestion into two tiers: Tier 1 covers ~15-20 core inflation-sensitive commodities (TOP vegetables, staple pulses, cereals, and edible oilseeds) with continuous daily ingestion and 3-5 years of backfill; Tier 2 covers the remaining 400+ commodities as on-demand backfills or periodic static snapshots. This keeps our primary analytical warehouse responsive and data density high while preserving access to broader commodities when needed.

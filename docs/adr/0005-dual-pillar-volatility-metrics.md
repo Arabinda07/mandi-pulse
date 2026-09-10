@@ -1,0 +1,3 @@
+# 5. Dual-pillar volatility metrics: Arrival Shock Anomaly and Spatial Price Dispersion
+
+We need to measure food supply-chain stress and predict price inflation before it reflects in retail markets. We decided to structure our analytical engine around two primary derived metrics: (1) Arrival Shock Anomaly (ASA), which measures calendar-week seasonal arrival volume departures, and (2) Spatial Price Dispersion (SPD), which measures the coefficient of variation across production and consumption Mandis. Rather than relying purely on lagging price moving averages or premature black-box machine learning models, these structural metrics capture both localized supply disruptions and spatial corridor bottlenecks.

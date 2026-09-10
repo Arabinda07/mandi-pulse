@@ -1,0 +1,61 @@
+{
+  "title": "India Food Inflation & Supply-Chain Volatility Engine",
+  "description": "Granular APMC Mandi wholesale price discovery, arrival shock anomalies (Z-scores), and inter-mandi spatial corridor stress metrics.",
+  "databases": {
+    "agri_engine": {
+      "title": "Agricultural Market Warehouse (WAL Mode)",
+      "description": "Normalized APMC Mandi facts linked to LGD administrative boundaries and spatial coordinates.",
+      "tables": {
+        "v_price_movement_attribution": {
+          "title": "Why Did Prices Move? (Attribution & Seasonality)",
+          "description": "Automated plain-English explanations attributing price spikes and drops to weather shocks, festival demand surges, and crop harvest cycles.",
+          "sort_desc": "reported_date",
+          "facets": ["commodity", "severity", "crop_season", "state"]
+        },
+        "v_live_mandi_prices": {
+          "title": "Live Mandi Prices Explorer (Clean & Formatted)",
+          "description": "Human-readable view of daily wholesale modal prices, retail equivalent (Rs/kg), and intraday spreads across Indian Mandis.",
+          "sort_desc": "reported_date",
+          "facets": ["commodity", "state", "district"]
+        },
+        "v_active_corridor_stress": {
+          "title": "Strategic Corridor Stress Alerts",
+          "description": "Active arbitrage spreads and supply slump Z-scores across production and terminal Mandis.",
+          "sort_desc": "reported_date",
+          "facets": ["commodity_name", "stress_level"]
+        },
+        "v_daily_national_summary": {
+          "title": "Daily National Summary",
+          "description": "Average modal price, price range, and total arrival volume per commodity per day.",
+          "sort_desc": "reported_date",
+          "facets": ["commodity_name"]
+        },
+        "mandi_registry": {
+          "title": "Mandi Master Registry",
+          "description": "Wholesale APMC markets with official administrative names, states, districts, and coordinates.",
+          "sort_desc": "canonical_name",
+          "facets": ["state", "hub_type"]
+        },
+        "daily_mandi_facts": {
+          "title": "Daily Mandi Facts (Raw Warehouse Table)",
+          "description": "Underlying relational fact table linking mandi_id, commodity_id, and wholesale prices.",
+          "sort_desc": "reported_date"
+        }
+      },
+      "queries": {
+        "todays_cheapest_and_costliest_mandis": {
+          "title": "Top Arbitrage Opportunities Today (Costliest vs Cheapest Markets)",
+          "sql": "SELECT reported_date, commodity, state, district, mandi_name, wholesale_price_rs_qtl, retail_equivalent_rs_kg, intraday_spread_rs_qtl FROM v_live_mandi_prices WHERE reported_date = (SELECT MAX(reported_date) FROM v_live_mandi_prices) ORDER BY wholesale_price_rs_qtl DESC LIMIT 50;"
+        },
+        "state_wise_price_summary": {
+          "title": "State-Wise Average Prices Today",
+          "sql": "SELECT state, commodity, COUNT(mandi_name) AS reporting_mandis, ROUND(AVG(wholesale_price_rs_qtl), 2) AS avg_wholesale_rs_qtl, ROUND(AVG(retail_equivalent_rs_kg), 2) AS avg_retail_rs_kg, MIN(wholesale_price_rs_qtl) AS min_wholesale_rs_qtl, MAX(wholesale_price_rs_qtl) AS max_wholesale_rs_qtl FROM v_live_mandi_prices WHERE reported_date = (SELECT MAX(reported_date) FROM v_live_mandi_prices) GROUP BY state, commodity ORDER BY commodity, avg_wholesale_rs_qtl DESC;"
+        },
+        "active_supply_chain_shocks": {
+          "title": "Active Supply-Chain Shocks (High & Severe Stress)",
+          "sql": "SELECT reported_date, commodity_name, origin_mandi, terminal_mandi, origin_modal_price, terminal_modal_price, price_spread, spread_pct, origin_arrival_shock_z, stress_level FROM v_active_corridor_stress WHERE stress_level IN ('HIGH', 'SEVERE') ORDER BY reported_date DESC, spread_pct DESC LIMIT 50;"
+        }
+      }
+    }
+  }
+}

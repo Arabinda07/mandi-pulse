@@ -1,0 +1,3 @@
+# 4. Shared SQLite in WAL mode for Datasette and Marimo
+
+We need concurrent read access for Datasette web exploration and Marimo reactive notebooks while allowing background ETL scripts to append daily market data. We decided to use a single local SQLite database configured with Write-Ahead Logging (`PRAGMA journal_mode=WAL;`), rather than running a client-server database like Postgres or routing Marimo queries through Datasette's HTTP JSON API. SQLite WAL mode provides concurrent non-blocking readers alongside writers, gives Marimo sub-millisecond query performance over local file descriptors, and avoids the memory and latency overhead of HTTP serialization.

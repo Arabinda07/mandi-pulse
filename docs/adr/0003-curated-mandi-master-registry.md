@@ -1,0 +1,3 @@
+# 3. Curated Mandi Master Registry for spatial entity resolution
+
+Incoming wholesale market data from Agmarknet contains unstandardized market strings, spelling variants, and no coordinates. We decided to maintain a curated `mandi_registry` dimension table holding canonical names, official Local Government Directory (LGD) codes, and geographic coordinates, alongside an alias mapping table. An ingestion staging step resolves raw market text to registry keys before writing to the facts table. While this introduces an entity resolution step into the ETL pipeline, it enables spatial corridor distance calculations, SpatiaLite indexing in Datasette, and joins with external rainfall and census datasets.

@@ -1,0 +1,3 @@
+# 6. Hybrid bootstrap seed and live delta ingestion
+
+To allow immediate exploratory analysis in Datasette and interactive simulation in Marimo without waiting for API key provisioning or multi-hour bulk backfills, we decided to implement a hybrid bootstrap architecture. The project ships with a reproducible bootstrap script that populates the SQLite warehouse with a curated Mandi Master Registry (with real LGD codes and geographic coordinates) and historical observations for core Tier 1 commodities (Tomato, Onion, Potato) across critical production-consumption corridors. An accompanying ingestion script (`pipeline/ingest.py`) handles continuous delta updates from `api.data.gov.in`.

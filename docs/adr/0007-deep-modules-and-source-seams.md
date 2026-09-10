@@ -1,0 +1,3 @@
+# 7. Deep modules and port-adapter seam for commodity sources
+
+Rather than organizing the codebase as a sequence of procedural scripts (`schema.py`, `bootstrap.py`, `ingest.py`, `resolver.py`), we decided to structure the system as deep modules with small, high-leverage interfaces: `Warehouse`, `MandiRegistry`, `VolatilityEngine`, and `IngestionEngine`. We established a clean port (`CommoditySource`) at the ingestion seam with two adapters: `BootstrapSeedAdapter` (local-substitutable for offline operation and automated testing) and `DataGovInAdapter` (true external for live production syncs). This eliminates leaky script abstractions, enables comprehensive test coverage without network dependencies, and provides clean Python domain methods for Marimo notebooks.
