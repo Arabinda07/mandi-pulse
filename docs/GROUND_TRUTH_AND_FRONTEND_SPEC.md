@@ -46,7 +46,7 @@ The table below documents every synthetic calculation currently in place and the
 
 ---
 
-## 3. Technology Separation of Concerns
+## 3. Technology Separation of Concerns & Role Boundaries
 
 ```
 [ SQLite Warehouse (WAL) ]
@@ -54,17 +54,19 @@ The table below documents every synthetic calculation currently in place and the
             ▼
 [ Datasette Server (:8001) ] ──> Headless JSON REST API (zero custom backend boilerplate)
             │
-      ┌─────┴────────────────────────────────┐
-      ▼                                      ▼
-[ Marimo Notebook ]                 [ React Web App ]
-• Reactive UX testing               • Production end-user interface
-• Rapid formula validation          • Mobile-first layout
-• Zero CSS/framework overhead       • Fast, lightweight client
+      ┌─────┴────────────────────────────────────────────────┐
+      ▼                                                      ▼
+[ Marimo Notebook ]                                 [ React Web App ]
+• STRICTLY Quantitative Research & Modeling         • 100% Owner of Consumer Frontend
+• Arrival Shock Anomaly (ASA Z-scores)              • AIDA & Bento Layout Architecture
+• Spatial Price Dispersion (CV math)                • Production Typography (Cabinet Grotesk)
+• Warehouse & Pipeline Data Validation              • Micro-interactions & Tactile Hover Physics
+• ZERO Consumer Frontend / HTML / UI Work           • Mobile-First Responsive Execution
 ```
 
-1. **Datasette**: Acts as the backend API. Exposes JSON endpoints directly from SQLite views with zero custom backend routes.
-2. **Marimo**: Acts as the calculation sandbox. Used to test retail multipliers, basket indexes, and card layouts before committing to component code.
-3. **React**: Consumes Datasette's JSON endpoints to render the clean, responsive consumer web application.
+1. **Datasette**: Headless database explorer and zero-code REST API layer. Serves JSON endpoints directly from SQLite views (`v_live_mandi_prices`, `v_active_corridor_stress`).
+2. **Marimo**: Dedicated strictly to quantitative research, statistical formula testing, and pipeline data validation. **Marimo performs ZERO consumer frontend work.** It uses only native data-science tables and charts. It must never attempt to render consumer cards or application chrome.
+3. **React Web Application**: Built in a dedicated session. Owns 100% of the consumer user interface, design system tokens, responsive layout, and interaction states. Consumes Datasette's JSON endpoints directly.
 
 ---
 
