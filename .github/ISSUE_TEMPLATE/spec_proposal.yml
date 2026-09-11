@@ -1,0 +1,65 @@
+name: 📝 Feature Specification Proposal
+description: Propose a new domain capability, commodity basket addition, or UI mode before writing code.
+title: "[SPEC PROPOSAL]: "
+labels: ["spec-proposal", "needs-clarification"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Spec-Driven Development (SDD) Workflow
+        All non-trivial feature additions must begin as a specification proposal in adherence to [`.specify/constitution.md`](../.specify/constitution.md).
+
+  - type: textarea
+    id: problem_statement
+    attributes:
+      label: Problem Statement & "Why"
+      description: What specific user or agricultural domain problem does this solve?
+      placeholder: e.g. Urban consumers in Bangalore lack visibility into Kolar tomato arrival shocks...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: target_mode
+    attributes:
+      label: Target Operational Mode
+      description: Which user mode does this primary feature target?
+      options:
+        - Household Mode (₹/kg)
+        - Bulk / Family Mode (₹/quintal, box rates)
+        - Quantitative Research / Analyst (Marimo & Datasette)
+        - Data Ingestion & Warehouse Pipeline
+    validations:
+      required: true
+
+  - type: textarea
+    id: user_stories
+    attributes:
+      label: User Stories & Acceptance Criteria
+      description: Detail the user journey and criteria for acceptance.
+      placeholder: |
+        - As a household shopper, I want to see...
+        - Acceptance criteria: Given [X], when [Y], then [Z]...
+    validations:
+      required: true
+
+  - type: textarea
+    id: data_provenance
+    attributes:
+      label: Data Provenance & Ground Truth Impact
+      description: Does this rely on live Agmarknet data, or does it introduce a temporary synthetic proxy?
+      placeholder: |
+        - Live Data Source: ...
+        - Synthetic Proxies (if any): ...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: constitutional_precheck
+    attributes:
+      label: Constitutional Pre-check
+      description: Confirm alignment with project invariants.
+      options:
+        - label: I will adhere to SQLite WAL mode and deep module boundaries.
+          required: true
+        - label: I have reviewed Article II (Ubiquitous Language) and avoided forbidden aliases.
+          required: true

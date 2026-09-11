@@ -1,0 +1,53 @@
+name: 🔍 Ground Truth Gap / Data Transition
+description: Track the migration from a synthetic calculation/proxy to an empirical external API.
+title: "[GROUND TRUTH GAP]: "
+labels: ["ground-truth", "data-pipeline"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Ground Truth Contract (Article IV)
+        This issue tracks resolving synthetic proxies (e.g. retail markup multipliers, Haversine freight, static weather events) with live empirical data feeds.
+
+  - type: dropdown
+    id: domain_area
+    attributes:
+      label: Domain Area
+      description: Which synthetic component is being addressed?
+      options:
+        - Retail Price Feed (Replacing 35% wholesale markup multiplier)
+        - Logistics & Freight (Replacing static Haversine ₹/km with diesel/FASTag rates)
+        - Weather & Crop Calamity (Replacing hardcoded calendar events with IMD/Open-Meteo)
+        - Mandi Coverage Expansion (Adding new APMCs to curated LGD registry)
+        - Commodity Basket Expansion (Tier 1 expansion or Tier 2 on-demand ingestion)
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_synthetic_implementation
+    attributes:
+      label: Current Synthetic Implementation
+      description: Where is the synthetic logic currently defined in code?
+      placeholder: e.g. `retail_price = (wholesale_price / 100) * 1.35` in `src/...`
+    validations:
+      required: true
+
+  - type: textarea
+    id: target_api_details
+    attributes:
+      label: Target API & Empirical Source
+      description: Provide documentation URL, authentication requirements, and rate limits for the real API.
+      placeholder: |
+        - Endpoint: https://...
+        - Authentication: API Key required
+        - Update Frequency: Daily at 18:00 IST
+    validations:
+      required: true
+
+  - type: textarea
+    id: migration_plan
+    attributes:
+      label: Adapter Implementation Plan
+      description: How will the `CommoditySource` port or new adapter seam be implemented?
+    validations:
+      required: false

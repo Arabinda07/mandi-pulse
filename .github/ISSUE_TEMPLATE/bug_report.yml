@@ -1,0 +1,46 @@
+name: 🐛 Bug / Discrepancy Report
+description: Report an empirical calculation discrepancy, entity resolution failure, or pipeline bug.
+title: "[BUG]: "
+labels: ["bug", "triage"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Concise description of the issue or discrepancy.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - MandiRegistry (Entity resolution or LGD code mapping)
+        - VolatilityEngine (ASA Z-scores or SPD dispersion)
+        - Warehouse (SQLite WAL, tables, or indices)
+        - IngestionEngine (CommoditySource adapters)
+        - Datasette / Canned Queries
+        - Marimo Modeling Notebook
+        - Consumer Frontend
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Run `python -m src.cli ...`
+        2. Execute query `...`
+        3. Observe discrepancy...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_vs_actual
+    attributes:
+      label: Expected vs. Actual Behavior
+      description: Detail what was expected according to the Constitution or Spec vs what actually occurred.
+    validations:
+      required: true
