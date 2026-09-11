@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GroundTruthBadge } from './GroundTruthBadge';
 import { AttributionDrawer } from './AttributionDrawer';
+import { CommodityVectorIcon, AdvisorIcon } from './Icons';
 
 /**
  * CommodityCard Component
@@ -16,14 +17,24 @@ export function CommodityCard({ commodity, mode }) {
     : `₹${commodity.wholesale_price_rs_qtl.toLocaleString('en-IN')}`;
   const displayUnit = isHousehold ? '/ kg' : '/ qtl';
 
-  // Delta formatting
-  const deltaText = commodity.day_change_rs > 0
-    ? `+₹${commodity.day_change_rs.toFixed(2)}`
-    : commodity.day_change_rs < 0
-    ? `-₹${Math.abs(commodity.day_change_rs).toFixed(2)}`
-    : '±₹0.00';
+  // Delta formatting based on mode
+  const deltaValue = isHousehold ? commodity.day_change_rs : (commodity.day_change_rs * 100);
+  const deltaUnit = isHousehold ? '/kg' : '/qtl';
+  const deltaSign = deltaValue > 0 ? '+' : deltaValue < 0 ? '-' : '';
+  const deltaNumber = isHousehold 
+    ? Math.abs(deltaValue).toFixed(2) 
+    : Math.round(Math.abs(deltaValue)).toLocaleString('en-IN');
+  
+  const pctText = commodity.day_change_pct !== undefined
+    ? ` (${commodity.day_change_pct > 0 ? '+' : ''}${commodity.day_change_pct.toFixed(1)}%)`
+    : '';
 
-  const deltaClass = commodity.day_change_rs > 0 ? 'up' : commodity.day_change_rs < 0 ? 'down' : 'neutral';
+  const deltaText = deltaValue !== 0 
+    ? `${deltaSign}₹${deltaNumber} ${deltaUnit}${pctText}` 
+    : `±₹0.00 ${deltaUnit}`;
+
+  const deltaClass = deltaValue > 0 ? 'up' : deltaValue < 0 ? 'down' : 'neutral';
+  const drawerId = `attribution-drawer-${commodity.id}`;
 
   return (
     <article className="commodity-card" aria-label={`${commodity.name} price card`}>
@@ -32,16 +43,16 @@ export function CommodityCard({ commodity, mode }) {
         <div className="commodity-card-header">
           <div className="commodity-name-group">
             <div className="commodity-icon-box" aria-hidden="true">
-              {commodity.icon}
+              <CommodityVectorIcon id={commodity.id} fallback={commodity.icon} size={24} />
             </div>
             <div>
-              <h2 className="commodity-title">{commodity.name}</h2>
+              <h3 className="commodity-title">{commodity.name}</h3>
               <div className="commodity-variety">{commodity.variety}</div>
             </div>
           </div>
 
           <div className={`status-pill ${commodity.status}`}>
-            <span style={{ fontSize: '0.65rem' }}>●</span>
+            <span className="status-pill-dot" aria-hidden="true" />
             <span>{commodity.status_label}</span>
           </div>
         </div>
@@ -55,7 +66,7 @@ export function CommodityCard({ commodity, mode }) {
 
           <div className="price-submeta">
             <span className={`price-delta ${deltaClass} price-delta`}>
-              {deltaText} vs yday
+              {deltaText} vs yesterday
             </span>
             <span className="trend-pill">
               {commodity.trend_signal}
@@ -65,8 +76,13 @@ export function CommodityCard({ commodity, mode }) {
 
         {/* Actionable Shopping Advice */}
         <div className="shopping-advice">
-          <strong>Advisor: </strong>
-          {commodity.advice}
+          <span className="shopping-advice-icon" aria-hidden="true">
+            <AdvisorIcon size={18} />
+          </span>
+          <div>
+            <strong>Buying tip: </strong>
+            <span>{commodity.advice}</span>
+          </div>
         </div>
       </div>
 
@@ -75,8 +91,7 @@ export function CommodityCard({ commodity, mode }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
           <GroundTruthBadge type={commodity.retail_provenance || 'empirical_dca'} />
           <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-
-            LGD Verified APMC
+            Verified APMC Mandi
           </span>
         </div>
 
@@ -85,12 +100,17 @@ export function CommodityCard({ commodity, mode }) {
           className="attribution-trigger-btn"
           onClick={() => setIsExpanded(!isExpanded)}
           aria-expanded={isExpanded}
+          aria-controls={drawerId}
         >
-          <span>{isExpanded ? 'Hide supply chain attribution' : 'Why is this price moving?'}</span>
-          <span style={{ fontSize: '0.85rem' }}>{isExpanded ? '▴' : '▾'}</span>
+          <span>{isExpanded ? 'Hide price breakdown' : 'Why is this price moving?'}</span>
+          <span style={{ fontSize: '0.85rem' }} aria-hidden="true">{isExpanded ? '▴' : '▾'}</span>
         </button>
 
-        {isExpanded && <AttributionDrawer commodity={commodity} mode={mode} />}
+        {isExpanded && (
+          <div id={drawerId}>
+            <AttributionDrawer commodity={commodity} mode={mode} />
+          </div>
+        )}
       </div>
     </article>
   );

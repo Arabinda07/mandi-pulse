@@ -22,9 +22,9 @@ export const REFERENCE_MARKET_DATA = {
     basket_hero: {
       weekly_total_rs: 198.50,
       week_change_pct: +8.4,
-      verdict: 'Vegetable basket elevated due to Nashik-Azadpur onion transit delays.',
+      verdict: 'The basket is up this week because onion arrivals from Nashik were delayed.',
       verdict_status: 'warning', // 'fair' | 'warning' | 'shock'
-      composition: 'Standard weekly family consumption: 1kg Tomato + 2kg Onion + 2kg Potato',
+      composition: 'Based on weekly staple needs: 1 kg Tomato, 2 kg Onion, 2 kg Potato',
     },
     commodities: [
       {
@@ -141,9 +141,9 @@ export const REFERENCE_MARKET_DATA = {
     basket_hero: {
       weekly_total_rs: 184.20,
       week_change_pct: +3.2,
-      verdict: 'Close proximity to Nashik & Narayangaon keeps vegetable supplies resilient.',
+      verdict: 'Close distance to Nashik and Narayangaon keeps vegetable supplies steady in Mumbai.',
       verdict_status: 'fair',
-      composition: 'Standard weekly family consumption: 1kg Tomato + 2kg Onion + 2kg Potato',
+      composition: 'Based on weekly staple needs: 1 kg Tomato, 2 kg Onion, 2 kg Potato',
     },
     commodities: [
       {
@@ -260,9 +260,9 @@ export const REFERENCE_MARKET_DATA = {
     basket_hero: {
       weekly_total_rs: 176.80,
       week_change_pct: -2.8,
-      verdict: 'South Karnataka harvest brings healthy supply; tomato prices among lowest nationally.',
+      verdict: 'South Karnataka harvest brings strong supplies; tomato prices are among the lowest in India.',
       verdict_status: 'fair',
-      composition: 'Standard weekly family consumption: 1kg Tomato + 2kg Onion + 2kg Potato',
+      composition: 'Based on weekly staple needs: 1 kg Tomato, 2 kg Onion, 2 kg Potato',
     },
     commodities: [
       {
@@ -379,9 +379,9 @@ export const REFERENCE_MARKET_DATA = {
     basket_hero: {
       weekly_total_rs: 204.60,
       week_change_pct: +11.2,
-      verdict: 'Interstate transport premiums and flood waterlogging in eastern corridors pushing prices up.',
+      verdict: 'Highway waterlogging and interstate freight costs are pushing basket prices up in Kolkata.',
       verdict_status: 'shock',
-      composition: 'Standard weekly family consumption: 1kg Tomato + 2kg Onion + 2kg Potato',
+      composition: 'Based on weekly staple needs: 1 kg Tomato, 2 kg Onion, 2 kg Potato',
     },
     commodities: [
       {
@@ -498,9 +498,9 @@ export const REFERENCE_MARKET_DATA = {
     basket_hero: {
       weekly_total_rs: 172.40,
       week_change_pct: +1.8,
-      verdict: 'Direct farmgate proximity keeps logistics friction minimal for Pune kitchen basket.',
+      verdict: 'Nearby farms keep transport costs low and supplies steady for Pune households.',
       verdict_status: 'fair',
-      composition: 'Standard weekly family consumption: 1kg Tomato + 2kg Onion + 2kg Potato',
+      composition: 'Based on weekly staple needs: 1 kg Tomato, 2 kg Onion, 2 kg Potato',
     },
     commodities: [
       {

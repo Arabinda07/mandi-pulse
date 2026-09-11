@@ -4,10 +4,14 @@ import { BasketHero } from './components/BasketHero';
 import { CommodityGrid } from './components/CommodityGrid';
 import { BulkSavingsCalculator } from './components/BulkSavingsCalculator';
 import { Footer } from './components/Footer';
+import { TransparencyModal } from './components/TransparencyModal';
 import { fetchMarketData } from './api/datasetteClient';
 import { METRO_HUBS } from './api/fallbackData';
 
 export function App() {
+  // Modal state for methodology and mandi registry
+  const [activeModal, setActiveModal] = useState(null);
+
   // 1. Location state with localStorage persistence
   const [selectedMetro, setSelectedMetro] = useState(() => {
     return localStorage.getItem('mandi_pulse_metro') || 'delhi';
@@ -22,7 +26,7 @@ export function App() {
   const [marketState, setMarketState] = useState({
     data: null,
     isLiveBackend: false,
-    sourceLabel: 'Connecting to Data Warehouse...',
+    sourceLabel: 'Connecting to market data...',
     loading: true,
   });
 
@@ -66,6 +70,11 @@ export function App() {
 
   return (
     <div className="app-container">
+      {/* Accessibility Skip Link (WCAG 2.4.1) */}
+      <a href="#main-content" className="skip-link">
+        Skip to market prices
+      </a>
+
       <Navigation
         selectedMetro={selectedMetro}
         onSelectMetro={handleSelectMetro}
@@ -75,7 +84,15 @@ export function App() {
         sourceLabel={marketState.sourceLabel}
       />
 
-      <main id="main-content">
+      <main 
+        id="main-content" 
+        className={`main-content ${marketState.loading ? 'is-loading' : ''}`}
+        aria-busy={marketState.loading}
+      >
+        {marketState.loading && (
+          <div className="loading-progress-bar" role="progressbar" aria-label="Loading terminal market data" />
+        )}
+
         {market && (
           <>
             {/* Component 2: Weekly Kitchen Basket Hero */}
@@ -90,7 +107,18 @@ export function App() {
         )}
       </main>
 
-      <Footer currentMarket={currentHub} />
+      <Footer 
+        currentMarket={currentHub} 
+        onOpenModal={(tabKey) => setActiveModal(tabKey)} 
+      />
+
+      {/* Methodology & Mandi Registry Modal */}
+      <TransparencyModal
+        isOpen={Boolean(activeModal)}
+        activeTab={activeModal || 'methodology'}
+        onClose={() => setActiveModal(null)}
+        onSelectTab={(tabKey) => setActiveModal(tabKey)}
+      />
     </div>
   );
 }

@@ -42,7 +42,7 @@ export async function fetchMarketData(metroId = 'delhi') {
       return {
         data: fallback,
         isLiveBackend: false,
-        sourceLabel: 'Local Reference Snapshot',
+        sourceLabel: 'Sample Data (Offline)',
       };
     }
 
@@ -53,7 +53,7 @@ export async function fetchMarketData(metroId = 'delhi') {
       return {
         data: fallback,
         isLiveBackend: false,
-        sourceLabel: 'Local Reference Snapshot (Empty DB View)',
+        sourceLabel: 'Sample Data (Empty DB)',
       };
     }
 
@@ -174,7 +174,7 @@ export async function fetchMarketData(metroId = 'delhi') {
         commodities: enrichedCommodities,
       },
       isLiveBackend: true,
-      sourceLabel: 'Live Datasette SQLite WAL Engine (DCA Empirical Feed)',
+      sourceLabel: 'Live Agmarknet & DCA Data',
     };
 
   } catch (err) {
@@ -182,7 +182,7 @@ export async function fetchMarketData(metroId = 'delhi') {
     return {
       data: fallback,
       isLiveBackend: false,
-      sourceLabel: 'Local Reference Snapshot (Offline Mode)',
+      sourceLabel: 'Sample Data (Offline)',
     };
   }
 }

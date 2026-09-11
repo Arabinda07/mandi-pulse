@@ -16,12 +16,12 @@ export function CommodityGrid({ commodities, mode }) {
 
   return (
     <section aria-label="Essential Commodities Price Monitor">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
-          Tier 1 Kitchen Staples (TOP Index)
-        </h3>
+      <div className="section-header-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+        <h2 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+          Essential Kitchen Staples
+        </h2>
         <span className="font-mono" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-          Mode: {mode === 'household' ? 'Household Retail Benchmark (₹/kg)' : 'Wholesale Mandi Auction (₹/qtl)'}
+          Mode: {mode === 'household' ? 'Household Retail (₹/kg)' : 'Wholesale Mandi (₹/qtl)'}
         </span>
       </div>
 

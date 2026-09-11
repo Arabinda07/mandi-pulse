@@ -12,7 +12,7 @@ export function BasketHero({ heroData, mode }) {
     ? `₹${heroData.weekly_total_rs.toFixed(2)}`
     : `₹${(heroData.weekly_total_rs * 40).toLocaleString('en-IN')}`; // 40x weekly scaling for volume families/institutions
   
-  const unitDisplay = isHousehold ? 'weekly family basket' : 'bulk / community order';
+  const unitDisplay = isHousehold ? 'weekly family basket' : 'bulk order (40x)';
 
   const isUp = heroData.week_change_pct > 0;
   const deltaColor = isUp ? 'var(--status-shock-text)' : 'var(--status-fair-text)';
@@ -37,12 +37,12 @@ export function BasketHero({ heroData, mode }) {
     : 'var(--status-fair-text)';
 
   return (
-    <section className="basket-hero-card" aria-label="Weekly Kitchen Basket Benchmark">
+    <section className="basket-hero-card" aria-label="Weekly Kitchen Basket">
       <div className="basket-title-group">
         <div className="basket-eyebrow">
-          <span>Weekly Consolidated Index</span>
+          <span>Weekly Staples</span>
           <span>•</span>
-          <span>10-Day Early Signal</span>
+          <span>Early Price Alert</span>
         </div>
         <h1 className="basket-headline">
           The Essential Kitchen Basket
@@ -51,11 +51,15 @@ export function BasketHero({ heroData, mode }) {
           {heroData.composition}
         </p>
         <div 
-          className="basket-verdict-pill" 
-          style={{ background: verdictBg, border: `1px solid ${verdictBorder}`, color: verdictColor, alignSelf: 'flex-start' }}
+          className="basket-outlook-strip" 
+          style={{ background: verdictBg, borderColor: verdictBorder }}
         >
-          <span>Market Outlook: </span>
-          <strong>{heroData.verdict}</strong>
+          <span className="outlook-badge" style={{ color: verdictColor }}>
+            ● Outlook:
+          </span>
+          <span className="outlook-text">
+            {heroData.verdict}
+          </span>
         </div>
       </div>
 

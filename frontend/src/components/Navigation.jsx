@@ -19,10 +19,10 @@ export function Navigation({
       <nav className="top-nav" aria-label="Main Navigation">
         <div className="brand-wrapper">
           <div className="brand-title">
-            <span className="live-pulse-dot" title="Warehouse Freshness Monitor" />
+            <span className="live-pulse-dot" title="Live data status" />
             <span>Mandi Pulse</span>
           </div>
-          <span className="brand-badge">Agri-Engine v1.0</span>
+          <span className="brand-badge">Daily Prices</span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -53,9 +53,9 @@ export function Navigation({
             target="_blank" 
             rel="noreferrer"
             className="metro-chip"
-            style={{ minHeight: '34px', fontSize: '0.78rem', textDecoration: 'none' }}
+            style={{ fontSize: '0.8rem', textDecoration: 'none' }}
           >
-            Datasette Explorer ↗
+            Raw Data (Datasette) ↗
           </a>
         </div>
       </nav>
@@ -63,7 +63,7 @@ export function Navigation({
       {/* Controls Bar: Metro Selector + Segmented Mode Switcher */}
       <div className="controls-bar">
         {/* Metro Chips */}
-        <div className="metro-chips-group" role="tablist" aria-label="Select Regional Terminal Market">
+        <div className="metro-chips-group" role="tablist" aria-label="Select city">
           {METRO_HUBS.map((metro) => {
             const isActive = selectedMetro === metro.id;
             return (

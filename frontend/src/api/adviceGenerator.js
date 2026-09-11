@@ -20,52 +20,52 @@ export function generateShoppingAdvice({
 
   let status = 'fair';
   let statusLabel = 'Fair Price';
-  let trendSignal = '⚪ Stable Corridor';
+  let trendSignal = '⚪ Steady price';
   let trendStatus = 'stable';
   let advice = '';
-  let weatherContext = `Normal seasonal climate and steady dispatches across ${origin} agricultural belt.`;
+  let weatherContext = `Normal harvest weather and steady shipments from ${origin}.`;
 
   // 1. Severe Supply Contraction (Shock)
   if (originArrivalShockZ <= -1.5 || (weatherFlag && (weatherFlag.includes('Rain') || weatherFlag.includes('Inundation')))) {
     status = 'shock';
-    statusLabel = 'Severe Spike';
-    trendSignal = '🔴 Spike in ~10d';
+    statusLabel = 'Price Spike';
+    trendSignal = '🔴 Rising in ~10 days';
     trendStatus = 'spike';
 
     if (weatherFlag && (weatherFlag.includes('Rain') || weatherFlag.includes('Inundation'))) {
-      advice = `${weatherFlag} in ${origin} farming belt disrupted arrivals (ASA ${originArrivalShockZ > 0 ? '+' : ''}${originArrivalShockZ.toFixed(2)}σ). Wholesale prices up ₹${Math.abs(dayChangeRsKg).toFixed(2)}/kg—buy 3-5 day weekly buffer before retail markups peak.`;
-      weatherContext = `${weatherFlag} recorded across ${origin} producing basin.`;
+      advice = `${weatherFlag} around ${origin} slowed arrivals. Wholesale prices rose ₹${Math.abs(dayChangeRsKg).toFixed(2)}/kg. Consider buying a few extra days of staples before retail markups peak.`;
+      weatherContext = `${weatherFlag} reported across ${origin} growing areas.`;
     } else {
-      advice = `${origin} arrivals contracted sharply (${originArrivalShockZ > 0 ? '+' : ''}${originArrivalShockZ.toFixed(2)}σ shock). Daily wholesale moved by ₹${dayChangeRsKg > 0 ? '+' : ''}${dayChangeRsKg.toFixed(2)}/kg—stock weekly cooking essentials early.`;
-      weatherContext = `Arrival contraction at ${origin} dispatch yards.`;
+      advice = `Arrivals from ${origin} dropped sharply. Wholesale prices moved by ₹${dayChangeRsKg > 0 ? '+' : ''}${dayChangeRsKg.toFixed(2)}/kg. Buy your weekly supply early before prices rise.`;
+      weatherContext = `Fewer trucks arriving at ${origin} yards.`;
     }
   }
   // 2. Moderate Pressure / Elevated Margin (Warning)
   else if (originArrivalShockZ <= -0.8 || weekChangePct >= 5.0 || dayChangeRsKg >= 1.5) {
     status = 'warning';
-    statusLabel = 'Elevated Margin';
-    trendSignal = '🔴 Spike in ~10d';
+    statusLabel = 'High Margin';
+    trendSignal = '🔴 Rising in ~10 days';
     trendStatus = 'spike';
-    advice = `${comm} arrivals from ${origin} down ${Math.abs(originArrivalShockZ).toFixed(1)}σ with prices up ${weekChangePct > 0 ? '+' : ''}${weekChangePct.toFixed(1)}% WoW. Consider purchasing bulk crate lots to bypass intermediary retail markups.`;
-    weatherContext = `Moderate dispatch variability in ${origin}; transit corridors experiencing slight friction.`;
+    advice = `Arrivals from ${origin} are down and prices rose ${weekChangePct > 0 ? '+' : ''}${weekChangePct.toFixed(1)}% this week. Buying full crates directly saves on retail markups.`;
+    weatherContext = `Slight shipping delays from ${origin}.`;
   }
   // 3. Supply Glut / Favorable Cooling Market (Fair / Cooling)
   else if (originArrivalShockZ >= 0.8 || weekChangePct <= -5.0 || dayChangeRsKg <= -1.5) {
     status = 'fair';
     statusLabel = 'Fair Price';
-    trendSignal = '🟢 Cooling Down in ~7d';
+    trendSignal = '🟢 Falling in ~7 days';
     trendStatus = 'cooling';
-    advice = `Abundant arrivals flowing smoothly from ${origin} (DoD ₹${dayChangeRsKg > 0 ? '+' : ''}${dayChangeRsKg.toFixed(2)}/kg). Favorable market conditions—buy only what you need for daily consumption.`;
-    weatherContext = `Favorable harvest conditions and clear highway transit across ${origin} belt.`;
+    advice = `Supplies from ${origin} are strong and prices dropped ₹${Math.abs(dayChangeRsKg).toFixed(2)}/kg yesterday. Good time to buy as needed.`;
+    weatherContext = `Clear roads and good harvest conditions across ${origin}.`;
   }
   // 4. Seasonal Equilibrium / Stable Corridor (Fair / Stable)
   else {
     status = 'fair';
     statusLabel = 'Fair Price';
-    trendSignal = '⚪ Stable Corridor';
+    trendSignal = '⚪ Steady price';
     trendStatus = 'stable';
-    advice = `Steady daily arrivals from ${origin} maintaining normal price equilibrium in ${terminalName} (${weekChangePct > 0 ? '+' : ''}${weekChangePct.toFixed(1)}% WoW). Stable cooking budget.`;
-    weatherContext = `Normal seasonal climate and steady dispatches across ${origin} agricultural belt.`;
+    advice = `Steady daily arrivals from ${origin} are keeping prices in ${terminalName} stable.`;
+    weatherContext = `Normal harvest weather and steady shipments from ${origin}.`;
   }
 
   return {
@@ -89,18 +89,18 @@ export function generateBasketVerdict(commodities = [], weeklyTotalRs = 0.0, wee
   if (shocks.length > 0) {
     const spikingNames = shocks.map((s) => s.name).join(' & ');
     const origins = [...new Set(shocks.map((s) => s.rupee_journey?.origin_mandi || 'key farmgate hubs'))].join(' and ');
-    verdict = `Vegetable basket elevated due to ${spikingNames} supply contraction at ${origins}.`;
+    verdict = `Basket cost is up this week due to lower ${spikingNames} arrivals from ${origins}.`;
     verdictStatus = 'shock';
   } else if (warnings.length > 0) {
     const warnNames = warnings.map((w) => w.name).join(' & ');
-    verdict = `Moderate upward pressure on ${warnNames} (${weekChangePct > 0 ? '+' : ''}${weekChangePct.toFixed(1)}% WoW); stable supplies on remaining staples.`;
+    verdict = `Prices rose on ${warnNames} this week (+${Math.abs(weekChangePct).toFixed(1)}%), while other staples remained steady.`;
     verdictStatus = 'warning';
   } else if (cooling.length > 0) {
     const coolNames = cooling.map((c) => c.name).join(' & ');
-    verdict = `Kitchen basket easing across ${coolNames} (${weekChangePct > 0 ? '+' : ''}${weekChangePct.toFixed(1)}% WoW); prices favorable for household staples.`;
+    verdict = `Basket costs dropped this week as ${coolNames} supplies improved.`;
     verdictStatus = 'fair';
   } else {
-    verdict = `Kitchen basket steady at ₹${weeklyTotalRs.toFixed(1)}/week; all strategic supply corridors operating in normal seasonal equilibrium.`;
+    verdict = `Basket costs are steady at ₹${weeklyTotalRs.toFixed(1)} per week with normal seasonal supply.`;
     verdictStatus = 'fair';
   }
 
