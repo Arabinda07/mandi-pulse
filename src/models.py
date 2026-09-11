@@ -18,6 +18,8 @@ class MandiRecord:
     longitude: float
     is_consumption_hub: bool = False
     hub_type: str = "production"  # "production" | "consumption" | "transit"
+    mandi_cess_pct: float = 1.0  # Statutory state APMC market fee / cess %
+    commission_cap_pct: float = 0.0  # Statutory commission cap % (Arhat / agent fee)
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,8 @@ class ResolvedMandi:
     is_consumption_hub: bool
     match_type: str  # "exact" | "alias" | "fuzzy" | "unmapped"
     confidence: float
+    mandi_cess_pct: float = 1.0
+    commission_cap_pct: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -88,3 +92,17 @@ class CorridorStress:
     spread_pct: float
     origin_arrival_shock_z: float
     stress_level: str  # "NORMAL" | "MODERATE" | "HIGH" | "SEVERE"
+
+
+@dataclass(frozen=True)
+class DCARetailRecord:
+    """Official Department of Consumer Affairs daily retail price observation."""
+    center_id: str
+    center_name: str
+    state: str
+    commodity_id: str
+    reported_date: str  # ISO YYYY-MM-DD
+    retail_price_rs_kg: float
+    mandi_id: Optional[str] = None
+    source_provenance: str = "dca_pms"  # "dca_pms" | "dca_api" | "synthetic_proxy"
+

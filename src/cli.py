@@ -43,7 +43,9 @@ def cmd_bootstrap(args: argparse.Namespace) -> None:
     table.add_row("Canonical Mandis Registered", str(summary["mandis_registered"]))
     table.add_row("Daily Market Facts Ingested", str(summary["facts_loaded"]))
     table.add_row("Corridor Stress Metrics Computed", str(summary["corridor_metrics_computed"]))
+    table.add_row("DCA Daily Retail Facts Loaded", str(summary.get("dca_retail_facts_loaded", 0)))
     console.print(table)
+
 
 
 def cmd_alerts(args: argparse.Namespace) -> None:
@@ -94,7 +96,48 @@ def cmd_sync(args: argparse.Namespace) -> None:
             console.print(f"[OK] Ingested {count} live facts for [cyan]{comm}[/cyan]")
 
     engine.refresh_corridor_stress_metrics()
+    dca_count = engine.ingest_dca_retail_prices()
+    console.print(f"[OK] Ingested {dca_count} live DCA retail facts")
     console.print("[bold green][OK] Live sync and metric recalculation complete![/bold green]")
+
+
+def cmd_dca(args: argparse.Namespace) -> None:
+    """Sync or inspect Department of Consumer Affairs (DCA) daily retail price benchmarks."""
+    console.print(Panel.fit("[bold blue]Department of Consumer Affairs (DCA) Retail Price Engine[/bold blue]"))
+    wh = Warehouse()
+    wh.initialize()
+    reg = MandiRegistry()
+    engine = IngestionEngine(wh, reg)
+
+
+    with console.status("[bold yellow]Ingesting DCA retail price benchmarks for consumption hubs...[/bold yellow]"):
+        count = engine.ingest_dca_retail_prices()
+
+    console.print(f"[bold green][OK] Upserted {count} empirical DCA retail price observations![/bold green]")
+    benchmarks = wh.get_dca_retail_benchmarks(limit=args.limit)
+    if not benchmarks.is_empty():
+        table = Table(title=f"DCA Daily Retail Benchmarks vs Wholesale (Top {benchmarks.height})")
+        table.add_column("Date", style="dim")
+        table.add_column("Commodity", style="cyan")
+        table.add_column("Center", style="yellow")
+        table.add_column("DCA Retail (Rs/kg)", justify="right", style="bold green")
+        table.add_column("Wholesale (Rs/kg)", justify="right")
+        table.add_column("Spread (Rs/kg)", justify="right", style="magenta")
+        table.add_column("Spread (%)", justify="right")
+        table.add_column("Source", style="dim")
+
+        for row in benchmarks.to_dicts():
+            table.add_row(
+                str(row.get("reported_date")),
+                str(row.get("commodity")),
+                str(row.get("consumption_center")),
+                f"Rs.{row.get('dca_retail_rs_kg', 0):.1f}",
+                f"Rs.{row.get('wholesale_modal_rs_kg', 0):.1f}" if row.get("wholesale_modal_rs_kg") is not None else "-",
+                f"Rs.{row.get('retail_spread_rs_kg', 0):.1f}" if row.get("retail_spread_rs_kg") is not None else "-",
+                f"{row.get('retail_spread_pct', 0):.1f}%" if row.get("retail_spread_pct") is not None else "-",
+                str(row.get("source_provenance")),
+            )
+        console.print(table)
 
 
 def main() -> None:
@@ -117,8 +160,14 @@ def main() -> None:
     p_sync.add_argument("--api-key", type=str, help="data.gov.in API key (optional if env set)")
     p_sync.set_defaults(func=cmd_sync)
 
+    # dca
+    p_dca = subparsers.add_parser("dca", help="Sync or inspect DCA daily retail price benchmarks")
+    p_dca.add_argument("--limit", type=int, default=20, help="Number of records to show")
+    p_dca.set_defaults(func=cmd_dca)
+
     args = parser.parse_args()
     args.func(args)
+
 
 
 if __name__ == "__main__":

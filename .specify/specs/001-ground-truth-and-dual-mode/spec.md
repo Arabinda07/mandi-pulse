@@ -60,11 +60,17 @@ This specification governs:
 ### 3.2: Synthetic Proxy Transition Matrix (Ground Truth)
 All downstream UI components and APIs must display appropriate provenance badges for synthetic metrics until live feeds are connected:
 
-| Metric | Current Synthetic Logic | Target Live API | Status |
+| Metric | Current Synthetic Logic | Target Live API / Official Source | Status |
 | :--- | :--- | :--- | :--- |
-| **Retail Price** | `retail_rs_kg = (modal_price / 100) * 1.35` | Department of Consumer Affairs (DCA) daily retail feed | `SYNTHETIC_PROXY` |
-| **Freight Cost** | Fixed nominal ₹/km over Haversine distance | Diesel prices + FASTag transit corridor indices | `SYNTHETIC_PROXY` |
-| **Crop Calamities** | Hardcoded historical events in `src/calendar.py` | Open-Meteo / IMD rainfall & weather anomaly API | `SYNTHETIC_PROXY` |
+| **Wholesale Mandi Arrivals & Prices** | Live paginated sync connecting Agmarknet API via `api.data.gov.in` (1,664 live records ingested today) | Open Government Data (OGD) Agmarknet Resource `9ef84268-d588-465a-a308-a864a43d0070` via `api.data.gov.in` | `LIVE_INTEGRATED` |
+| **Retail Benchmark Price** | Live daily scraping from Department of Consumer Affairs PMS (`https://fcainfoweb.nic.in/`) | Department of Consumer Affairs (DCA) Price Monitoring System (`https://fcainfoweb.nic.in/`) | `LIVE_INTEGRATED` |
+| **Day/Week Price Deltas** | Windowed `v_live_price_deltas` view with `LAG OVER` computing exact DoD and WoW changes | SQLite window functions (`LAG() OVER ...`) on daily price facts | `LIVE_INTEGRATED` |
+| **Early Signals & Shopping Advice** | Hardcoded static strings in `frontend/src/api/fallbackData.js` | Rule-based NLG engine evaluating origin ASA Z-scores, weather flags, and price velocity | `PENDING_ENGINE_IMPLEMENTATION` |
+| **Freight Cost** | Fixed nominal ₹/km over Haversine distance | PPAC daily diesel prices (`ppac.gov.in`) + NHTIS toll gazette rates (`tis.nhai.gov.in`) | `PENDING_INTEGRATION` |
+| **The Rupee Journey Cost Breakdown** | Active corridor joins in `v_live_mandi_prices` linking terminal mandis to production origins (`origin_mandi_id`, `origin_name`, `origin_arrival_shock_z`, `corridor_stress_level`) | State APMC statutory cess schedules (1-2%) + dynamic DCA retail spread + active corridor links | `LIVE_INTEGRATED` |
+| **Weekly Kitchen Basket Weights** | Assumed 1kg Tomato + 2kg Onion + 2kg Potato | MoSPI Consumer Price Index (CPI 2024=100 Series) / HCES 2023-24 expenditure ratios | `PENDING_CALIBRATION` |
+| **Bulk Mandi Handling & Packaging** | Scaled flat wholesale rate: `wholesale / 100 * box_kg` | APMC statutory hamali (₹2-5/bag) and standardized crate auction lots under State APMC Acts | `PENDING_INTEGRATION` |
+| **Crop Calamities & Weather** | Live Open-Meteo ERA5 / IMD grid precipitation and temperature anomalies | Open-Meteo ERA5 / IMD grid live precipitation API (`src/sources/weather.py`) | `LIVE_INTEGRATED` |
 
 ---
 

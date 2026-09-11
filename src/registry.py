@@ -10,9 +10,46 @@ from src.models import MandiRecord, ResolvedMandi
 class MandiRegistry:
     """Deep module for APMC Mandi master data, spatial coordinates, and entity resolution."""
 
+    # Official State APMC Act Fee Schedules & Statutory Cess Schedules
+    # Source: State Agricultural Marketing Boards (MSAMB, DAMB, KSAMB, UPSAMB, etc.)
+    STATE_STATUTORY_FEES: Dict[str, Dict[str, float]] = {
+        "maharashtra": {
+            "mandi_cess_pct": 1.05,  # MSAMB 1.05% market fee
+            "commission_cap_pct": 6.0,  # MSAMB Fruits & Vegetables commission cap (payable by buyer)
+        },
+        "delhi": {
+            "mandi_cess_pct": 2.0,  # DAMB: 1.0% mandi fee + 1.0% rural development cess
+            "commission_cap_pct": 6.0,  # DAMB F&V commission agent cap
+        },
+        "nct of delhi": {
+            "mandi_cess_pct": 2.0,  # DAMB: 1.0% mandi fee + 1.0% rural development cess
+            "commission_cap_pct": 6.0,
+        },
+        "karnataka": {
+            "mandi_cess_pct": 1.5,  # KSAMB: 1.5% market fee
+            "commission_cap_pct": 2.0,  # KSAMB commission cap
+        },
+        "uttar pradesh": {
+            "mandi_cess_pct": 2.0,  # UPSAMB: 1.5% mandi fee + 0.5% development cess
+            "commission_cap_pct": 2.0,  # UPSAMB commission cap
+        },
+        "andhra pradesh": {
+            "mandi_cess_pct": 1.0,  # APSAMB: 1.0% market fee
+            "commission_cap_pct": 4.0,  # Commission cap
+        },
+        "madhya pradesh": {
+            "mandi_cess_pct": 1.5,  # MP Mandi Board: 1.5% market fee
+            "commission_cap_pct": 2.0,
+        },
+        "west bengal": {
+            "mandi_cess_pct": 1.0,  # WBSAMB: 1.0% market fee
+            "commission_cap_pct": 2.0,
+        },
+    }
+
     # Canonical APMC hubs across India's primary production corridors & terminal consumption centers
     _CANONICAL_MANDIS: List[MandiRecord] = [
-        # Maharashtra - Onion & Perishable Capital
+        # Maharashtra - Onion & Perishable Capital (MSAMB: 1.05% market fee, 6.0% commission cap)
         MandiRecord(
             mandi_id="mandi_lasalgaon",
             canonical_name="Lasalgaon",
@@ -24,6 +61,8 @@ class MandiRegistry:
             longitude=74.2256,
             is_consumption_hub=False,
             hub_type="production",
+            mandi_cess_pct=1.05,
+            commission_cap_pct=6.0,
         ),
         MandiRecord(
             mandi_id="mandi_pimpalgaon",
@@ -36,6 +75,8 @@ class MandiRegistry:
             longitude=73.9856,
             is_consumption_hub=False,
             hub_type="production",
+            mandi_cess_pct=1.05,
+            commission_cap_pct=6.0,
         ),
         MandiRecord(
             mandi_id="mandi_pune",
@@ -48,6 +89,8 @@ class MandiRegistry:
             longitude=73.8567,
             is_consumption_hub=True,
             hub_type="consumption",
+            mandi_cess_pct=1.05,
+            commission_cap_pct=6.0,
         ),
         MandiRecord(
             mandi_id="mandi_vashi",
@@ -60,6 +103,8 @@ class MandiRegistry:
             longitude=73.0030,
             is_consumption_hub=True,
             hub_type="consumption",
+            mandi_cess_pct=1.05,
+            commission_cap_pct=6.0,
         ),
         MandiRecord(
             mandi_id="mandi_solapur",
@@ -72,8 +117,10 @@ class MandiRegistry:
             longitude=75.9064,
             is_consumption_hub=False,
             hub_type="production",
+            mandi_cess_pct=1.05,
+            commission_cap_pct=6.0,
         ),
-        # Karnataka & Andhra Pradesh - Tomato & Pulse Belts
+        # Karnataka & Andhra Pradesh - Tomato & Pulse Belts (KSAMB: 1.5%, APSAMB: 1.0%)
         MandiRecord(
             mandi_id="mandi_kolar",
             canonical_name="Kolar",
@@ -85,6 +132,8 @@ class MandiRegistry:
             longitude=78.1292,
             is_consumption_hub=False,
             hub_type="production",
+            mandi_cess_pct=1.5,
+            commission_cap_pct=2.0,
         ),
         MandiRecord(
             mandi_id="mandi_bangalore",
@@ -97,6 +146,8 @@ class MandiRegistry:
             longitude=77.5516,
             is_consumption_hub=True,
             hub_type="consumption",
+            mandi_cess_pct=1.5,
+            commission_cap_pct=2.0,
         ),
         MandiRecord(
             mandi_id="mandi_madanapalle",
@@ -109,8 +160,10 @@ class MandiRegistry:
             longitude=78.5010,
             is_consumption_hub=False,
             hub_type="production",
+            mandi_cess_pct=1.0,
+            commission_cap_pct=4.0,
         ),
-        # National Capital Region - Megacity Consumption Terminals
+        # National Capital Region - Megacity Consumption Terminals (DAMB: 1.0% fee + 1.0% cess = 2.0%)
         MandiRecord(
             mandi_id="mandi_azadpur",
             canonical_name="Azadpur (Delhi)",
@@ -122,6 +175,8 @@ class MandiRegistry:
             longitude=77.1772,
             is_consumption_hub=True,
             hub_type="consumption",
+            mandi_cess_pct=2.0,
+            commission_cap_pct=6.0,
         ),
         MandiRecord(
             mandi_id="mandi_ghazipur",
@@ -134,8 +189,10 @@ class MandiRegistry:
             longitude=77.3326,
             is_consumption_hub=True,
             hub_type="consumption",
+            mandi_cess_pct=2.0,
+            commission_cap_pct=6.0,
         ),
-        # Uttar Pradesh & Madhya Pradesh - Potato & Wheat Belts
+        # Uttar Pradesh & Madhya Pradesh - Potato & Wheat Belts (UPSAMB: 1.5% + 0.5% = 2.0%, MPSAMB: 1.5%)
         MandiRecord(
             mandi_id="mandi_agra",
             canonical_name="Agra",
@@ -147,6 +204,8 @@ class MandiRegistry:
             longitude=78.0081,
             is_consumption_hub=False,
             hub_type="production",
+            mandi_cess_pct=2.0,
+            commission_cap_pct=2.0,
         ),
         MandiRecord(
             mandi_id="mandi_farrukhabad",
@@ -159,6 +218,8 @@ class MandiRegistry:
             longitude=79.5828,
             is_consumption_hub=False,
             hub_type="production",
+            mandi_cess_pct=2.0,
+            commission_cap_pct=2.0,
         ),
         MandiRecord(
             mandi_id="mandi_indore",
@@ -171,8 +232,10 @@ class MandiRegistry:
             longitude=75.8577,
             is_consumption_hub=False,
             hub_type="production",
+            mandi_cess_pct=1.5,
+            commission_cap_pct=2.0,
         ),
-        # West Bengal - Eastern Potato & Rice Corridor
+        # West Bengal - Eastern Potato & Rice Corridor (WBSAMB: 1.0%)
         MandiRecord(
             mandi_id="mandi_kolkata",
             canonical_name="Kolkata (Koley Market)",
@@ -184,6 +247,8 @@ class MandiRegistry:
             longitude=88.3697,
             is_consumption_hub=True,
             hub_type="consumption",
+            mandi_cess_pct=1.0,
+            commission_cap_pct=2.0,
         ),
     ]
 
@@ -231,6 +296,15 @@ class MandiRegistry:
         cleaned = re.sub(r"[^a-zA-Z0-9\s]", "", text)
         return " ".join(cleaned.lower().split())
 
+    @classmethod
+    def get_statutory_fees(cls, state: Optional[str]) -> Dict[str, float]:
+        """Look up statutory APMC market fee + cess and commission cap for a state."""
+        st_key = (state or "").strip().lower()
+        return cls.STATE_STATUTORY_FEES.get(
+            st_key,
+            {"mandi_cess_pct": 1.0, "commission_cap_pct": 2.0}
+        )
+
     def get_canonical_mandis(self) -> List[MandiRecord]:
         """Return all verified APMC master records."""
         return list(self._CANONICAL_MANDIS)
@@ -268,6 +342,8 @@ class MandiRegistry:
                 is_consumption_hub=m.is_consumption_hub,
                 match_type="exact",
                 confidence=1.0,
+                mandi_cess_pct=m.mandi_cess_pct,
+                commission_cap_pct=m.commission_cap_pct,
             )
 
         # 2. Curated alias dictionary match
@@ -286,6 +362,8 @@ class MandiRegistry:
                 is_consumption_hub=m.is_consumption_hub,
                 match_type="alias",
                 confidence=0.98,
+                mandi_cess_pct=m.mandi_cess_pct,
+                commission_cap_pct=m.commission_cap_pct,
             )
 
         # 3. Fuzzy matching against canonical names and aliases
@@ -311,6 +389,8 @@ class MandiRegistry:
                 is_consumption_hub=m.is_consumption_hub,
                 match_type="fuzzy",
                 confidence=round(best_ratio, 2),
+                mandi_cess_pct=m.mandi_cess_pct,
+                commission_cap_pct=m.commission_cap_pct,
             )
 
         # 4. Fallback: Clean, human-readable geocoded regional market
@@ -323,6 +403,7 @@ class MandiRegistry:
         slug_district = self._normalize_token(clean_district).replace(" ", "_")[:20]
         m_id = f"mandi_{slug_district}_{slug_market}" if slug_district else f"mandi_{slug_market}"
         lat, lon = get_coordinates(clean_district, clean_state)
+        stat_fee = self.get_statutory_fees(clean_state)
 
         return ResolvedMandi(
             mandi_id=m_id,
@@ -335,4 +416,6 @@ class MandiRegistry:
             is_consumption_hub=False,
             match_type="regional",
             confidence=0.70,
+            mandi_cess_pct=stat_fee["mandi_cess_pct"],
+            commission_cap_pct=stat_fee["commission_cap_pct"],
         )

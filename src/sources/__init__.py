@@ -4,5 +4,13 @@ from src.sources.base import CommoditySource
 from src.sources.seed import BootstrapSeedAdapter
 from src.sources.datagov import DataGovInAdapter
 from src.sources.weather import MandiWeatherAdapter
+from src.sources.dca import DCARetailAdapter
 
-__all__ = ["CommoditySource", "BootstrapSeedAdapter", "DataGovInAdapter", "MandiWeatherAdapter"]
+__all__ = [
+    "CommoditySource",
+    "BootstrapSeedAdapter",
+    "DataGovInAdapter",
+    "MandiWeatherAdapter",
+    "DCARetailAdapter",
+]
+

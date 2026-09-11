@@ -9,11 +9,35 @@ Synthesizes:
 """
 
 from __future__ import annotations
+import logging
 from dataclasses import dataclass
 from datetime import date
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from src.calendar import get_commodity_calendar_context, DemandImpact, CropPhase
+from src.sources.weather import MandiWeatherAdapter
+from src.registry import MandiRegistry
+
+logger = logging.getLogger(__name__)
+
+# Module-level instances and cache to prevent redundant external API requests
+_WEATHER_ADAPTER = MandiWeatherAdapter()
+_REGISTRY = MandiRegistry()
+_WEATHER_CACHE: Dict[tuple, Dict[str, float]] = {}
+
+
+@dataclass
+class ShoppingAdvice:
+    commodity: str
+    advice: str
+    status: str            # 'fair' | 'warning' | 'shock'
+    status_label: str      # 'Fair Price' | 'Elevated Margin' | 'Severe Spike'
+    trend_signal: str      # '🟢 Cooling Down in ~7d' | '🔴 Spike in ~10d' | '⚪ Stable Corridor'
+    trend_status: str      # 'cooling' | 'spike' | 'stable'
+    weather_context: str
+    headline: str
+    origin_name: str
+    arrival_z_score: float
 
 
 @dataclass
@@ -30,6 +54,117 @@ class PriceAttribution:
     crop_season: str
     cultural_context: str
     weather_flag: Optional[str]
+    shopping_advice: str = ""
+
+
+def get_mandi_weather(
+    mandi_identifier: str,
+    obs_date: Optional[date] = None,
+    use_cache: bool = True,
+    weather_adapter: Optional[MandiWeatherAdapter] = None,
+) -> Dict[str, float]:
+    """
+    Fetch live / historical meteorological observations for a canonical Mandi.
+    Resolves mandi_id or common name to exact GPS coordinates via MandiRegistry
+    and queries Open-Meteo (ERA5 / IMD equivalent) without requiring an API key.
+    """
+    global _WEATHER_CACHE
+    adapter = weather_adapter or _WEATHER_ADAPTER
+    target_date = obs_date or date.today()
+    date_str = target_date.isoformat()
+
+    # 1. Resolve Mandi coordinates
+    mandi_record = _REGISTRY.get_mandi(mandi_identifier)
+    if not mandi_record:
+        resolved = _REGISTRY.resolve(mandi_identifier)
+        mandi_record = _REGISTRY.get_mandi(resolved.mandi_id)
+
+    if not mandi_record or not mandi_record.latitude or not mandi_record.longitude:
+        return {"precipitation_mm": 0.0, "max_temp_c": 0.0, "status": "COORDINATES_MISSING"}
+
+    cache_key = (mandi_record.mandi_id, date_str)
+    if use_cache and cache_key in _WEATHER_CACHE:
+        return _WEATHER_CACHE[cache_key]
+
+    # 2. Fetch from Open-Meteo via MandiWeatherAdapter
+    try:
+        data = adapter.get_mandi_rainfall(
+            latitude=mandi_record.latitude,
+            longitude=mandi_record.longitude,
+            start_date=date_str,
+            end_date=date_str,
+        )
+        precip_list = data.get("precipitation_mm", [])
+        temp_list = data.get("temperature_max_c", [])
+
+        precip = float(precip_list[0]) if precip_list and precip_list[0] is not None else 0.0
+        temp = float(temp_list[0]) if temp_list and temp_list[0] is not None else 0.0
+
+        res = {
+            "mandi_id": mandi_record.mandi_id,
+            "canonical_name": mandi_record.canonical_name,
+            "precipitation_mm": precip,
+            "max_temp_c": temp,
+            "status": "LIVE_OPEN_METEO"
+        }
+        _WEATHER_CACHE[cache_key] = res
+        return res
+    except Exception as err:
+        logger.warning("Failed to fetch live weather for mandi %s: %s", mandi_identifier, err)
+        return {"precipitation_mm": 0.0, "max_temp_c": 0.0, "status": "ERROR"}
+
+
+def fetch_all_mandis_weather_alerts(
+    obs_date: Optional[date] = None,
+    weather_adapter: Optional[MandiWeatherAdapter] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Query live weather conditions across all 25 canonical APMC Mandis in the registry.
+    Detects heavy rainfall, cloudburst inundation, and severe heatwave conditions.
+    """
+    alerts = []
+    target_date = obs_date or date.today()
+    date_str = target_date.isoformat()
+
+    for mandi in _REGISTRY.get_canonical_mandis():
+        weather = get_mandi_weather(mandi.mandi_id, obs_date=target_date, weather_adapter=weather_adapter)
+        rain = weather.get("precipitation_mm", 0.0)
+        temp = weather.get("max_temp_c", 0.0)
+
+        flag = None
+        severity = "NORMAL"
+
+        if rain >= 30.0:
+            flag = f"🌧️ Severe Inundation ({rain:.1f} mm)"
+            severity = "CRITICAL"
+        elif rain >= 15.0:
+            flag = f"🌧️ Heavy Rainfall ({rain:.1f} mm)"
+            severity = "WARNING"
+        elif rain >= 5.0:
+            flag = f"🌦️ Moderate Rain ({rain:.1f} mm)"
+            severity = "NOTICE"
+        elif temp >= 40.0:
+            flag = f"☀️ Severe Heatwave ({temp:.1f}°C)"
+            severity = "CRITICAL"
+        elif temp >= 38.0:
+            flag = f"☀️ High Temperature ({temp:.1f}°C)"
+            severity = "WARNING"
+
+        alerts.append({
+            "mandi_id": mandi.mandi_id,
+            "canonical_name": mandi.canonical_name,
+            "state": mandi.state,
+            "district": mandi.district,
+            "latitude": mandi.latitude,
+            "longitude": mandi.longitude,
+            "observation_date": date_str,
+            "precipitation_mm": rain,
+            "max_temp_c": temp,
+            "weather_flag": flag,
+            "severity": severity,
+        })
+
+    return alerts
 
 
 def explain_price_movement(
@@ -40,13 +175,25 @@ def explain_price_movement(
     price_prior: float,
     min_price: float = 0.0,
     max_price: float = 0.0,
-    rainfall_mm: float = 0.0,
-    max_temp_c: float = 0.0,
+    rainfall_mm: Optional[float] = None,
+    max_temp_c: Optional[float] = None,
+    mandi_id: Optional[str] = None,
+    fetch_live_weather: bool = True,
 ) -> PriceAttribution:
     """
     Explain the primary driver behind a commodity price observation in plain English.
+    Dynamically pulls live Open-Meteo weather if rainfall/temp are not explicitly provided.
     """
     comm = commodity.capitalize()
+
+    # If weather metrics were not explicitly passed, query live Open-Meteo adapter
+    if (rainfall_mm is None or (rainfall_mm == 0.0 and max_temp_c in (None, 0.0))) and fetch_live_weather:
+        live_w = get_mandi_weather(mandi_id or mandi_name, obs_date=trade_date)
+        rainfall_mm = live_w.get("precipitation_mm", 0.0)
+        max_temp_c = live_w.get("max_temp_c", 0.0)
+    else:
+        rainfall_mm = rainfall_mm or 0.0
+        max_temp_c = max_temp_c or 0.0
     
     # 1. Calculate price velocity
     if price_prior > 0:
@@ -172,6 +319,18 @@ def explain_price_movement(
     if cultural_impacts:
         cultural_summary = f"{cultural_impacts[0]['festival']} ({cultural_impacts[0]['status']}) - {cultural_impacts[0]['impact']}"
 
+    advice_res = generate_shopping_advice(
+        commodity=comm,
+        terminal_name=mandi_name,
+        price_today_rs_kg=price_today / 100.0,
+        day_change_rs_kg=((price_today - price_prior) / 100.0) if price_prior > 0 else 0.0,
+        week_change_pct=pct_change,
+        origin_name=mandi_name,
+        origin_arrival_shock_z=0.0,
+        weather_flag=weather_flag,
+        crop_season=crop_season,
+    )
+
     return PriceAttribution(
         commodity=comm,
         mandi_name=mandi_name,
@@ -185,4 +344,135 @@ def explain_price_movement(
         crop_season=crop_season,
         cultural_context=cultural_summary,
         weather_flag=weather_flag,
+        shopping_advice=advice_res.advice,
     )
+
+
+def generate_shopping_advice(
+    commodity: str,
+    terminal_name: str,
+    price_today_rs_kg: float,
+    day_change_rs_kg: float = 0.0,
+    week_change_pct: float = 0.0,
+    origin_name: Optional[str] = None,
+    origin_arrival_shock_z: float = 0.0,
+    weather_flag: Optional[str] = None,
+    crop_season: Optional[str] = None,
+) -> ShoppingAdvice:
+    """
+    Deterministic rule-based NLG engine:
+    Synthesizes origin arrival shock (ASA Z-scores), weather flags from Open-Meteo,
+    and DoD/WoW price velocity into consumer-facing household buying recommendations.
+    """
+    comm = commodity.capitalize()
+    default_origin = "Lasalgaon" if comm.lower() == "onion" else ("Kolar" if comm.lower() == "tomato" else "Farrukhabad")
+    origin = origin_name or default_origin
+
+    # 1. Severe Supply Contraction (Shock)
+    if origin_arrival_shock_z <= -1.5 or (weather_flag and ("Rain" in weather_flag or "Inundation" in weather_flag)):
+        status = "shock"
+        status_label = "Severe Spike"
+        trend_signal = "🔴 Spike in ~10d"
+        trend_status = "spike"
+        if weather_flag and ("Rain" in weather_flag or "Inundation" in weather_flag):
+            advice = (
+                f"{weather_flag} in {origin} farming belt disrupted arrivals (ASA {origin_arrival_shock_z:+.2f}Z). "
+                f"Wholesale prices up ₹{abs(day_change_rs_kg):.2f}/kg—buy 3-5 day weekly buffer before retail markups peak."
+            )
+            weather_context = f"{weather_flag} recorded across {origin} producing basin."
+        else:
+            advice = (
+                f"{origin} arrivals contracted sharply ({origin_arrival_shock_z:+.2f}Z shock). "
+                f"Daily wholesale moved by ₹{day_change_rs_kg:+.2f}/kg—stock weekly cooking essentials early."
+            )
+            weather_context = f"Arrival contraction at {origin} dispatch yards."
+        headline = f"Severe Supply Crunch in {origin}"
+
+    # 2. Moderate Pressure / Elevated Margin (Warning)
+    elif origin_arrival_shock_z <= -0.8 or week_change_pct >= 5.0 or day_change_rs_kg >= 1.5:
+        status = "warning"
+        status_label = "Elevated Margin"
+        trend_signal = "🔴 Spike in ~10d"
+        trend_status = "spike"
+        advice = (
+            f"{comm} arrivals from {origin} down {abs(origin_arrival_shock_z):.1f}Z with prices up {week_change_pct:+.1f}% WoW. "
+            f"Consider purchasing bulk crate lots to bypass intermediary retail markups."
+        )
+        weather_context = f"Moderate dispatch variability in {origin}; transit corridors experiencing slight friction."
+        headline = f"Elevated Margins for {comm}"
+
+    # 3. Supply Glut / Favorable Cooling Market (Fair / Cooling)
+    elif origin_arrival_shock_z >= 0.8 or week_change_pct <= -5.0 or day_change_rs_kg <= -1.5:
+        status = "fair"
+        status_label = "Fair Price"
+        trend_signal = "🟢 Cooling Down in ~7d"
+        trend_status = "cooling"
+        advice = (
+            f"Abundant arrivals flowing smoothly from {origin} (DoD ₹{day_change_rs_kg:+.2f}/kg). "
+            f"Favorable market conditions—buy only what you need for daily consumption."
+        )
+        weather_context = f"Favorable harvest conditions and clear highway transit across {origin} belt."
+        headline = f"Favorable Supply from {origin}"
+
+    # 4. Seasonal Equilibrium / Stable Corridor (Fair / Stable)
+    else:
+        status = "fair"
+        status_label = "Fair Price"
+        trend_signal = "⚪ Stable Corridor"
+        trend_status = "stable"
+        advice = (
+            f"Steady daily arrivals from {origin} maintaining normal price equilibrium in {terminal_name} ({week_change_pct:+.1f}% WoW). "
+            f"Stable cooking budget."
+        )
+        weather_context = f"Normal seasonal climate and steady dispatches across {origin} agricultural belt."
+        headline = f"Stable Market Corridor"
+
+    return ShoppingAdvice(
+        commodity=comm,
+        advice=advice,
+        status=status,
+        status_label=status_label,
+        trend_signal=trend_signal,
+        trend_status=trend_status,
+        weather_context=weather_context,
+        headline=headline,
+        origin_name=origin,
+        arrival_z_score=origin_arrival_shock_z,
+    )
+
+
+def generate_basket_verdict(
+    advices: List[ShoppingAdvice],
+    weekly_total_rs: float,
+    week_change_pct: float,
+) -> Dict[str, str]:
+    """
+    Generate an executive household market verdict across the consolidated kitchen basket.
+    Synthesizes multiple commodity pressure points into a unified recommendation.
+    """
+    shocks = [a for a in advices if a.status == "shock"]
+    warnings = [a for a in advices if a.status == "warning"]
+    cooling = [a for a in advices if a.trend_status == "cooling"]
+
+    if shocks:
+        spiking_names = " & ".join(s.commodity for s in shocks)
+        origins = " and ".join(dict.fromkeys(s.origin_name for s in shocks if s.origin_name))
+        verdict = f"Vegetable basket elevated due to {spiking_names} supply contraction at {origins or 'key farmgate hubs'}."
+        verdict_status = "shock"
+    elif warnings:
+        warn_names = " & ".join(w.commodity for w in warnings)
+        verdict = f"Moderate upward pressure on {warn_names} ({week_change_pct:+.1f}% WoW); stable supplies on remaining staples."
+        verdict_status = "warning"
+    elif cooling:
+        cool_names = " & ".join(c.commodity for c in cooling)
+        verdict = f"Kitchen basket easing across {cool_names} ({week_change_pct:+.1f}% WoW); prices favorable for household staples."
+        verdict_status = "fair"
+    else:
+        verdict = f"Kitchen basket steady at ₹{weekly_total_rs:.1f}/week; all strategic supply corridors operating in normal seasonal equilibrium."
+        verdict_status = "fair"
+
+    return {
+        "verdict": verdict,
+        "verdict_status": verdict_status,
+    }
+

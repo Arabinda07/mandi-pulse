@@ -7,7 +7,13 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 import polars as pl
 
-from src.models import MandiRecord, CommodityRecord, DailyFactRecord, CorridorStress
+from src.models import (
+    MandiRecord,
+    CommodityRecord,
+    DailyFactRecord,
+    CorridorStress,
+    DCARetailRecord,
+)
 from src.volatility import VolatilityEngine
 
 
@@ -47,6 +53,15 @@ class Warehouse:
     def initialize(self) -> None:
         """Idempotently create tables, constraints, indices, and views."""
         with self._get_connection() as conn:
+            # Handle schema evolution for existing SQLite databases
+            cur = conn.execute("PRAGMA table_info(mandi_registry);")
+            cols = {row[1] for row in cur.fetchall()}
+            if cols:
+                if "mandi_cess_pct" not in cols:
+                    conn.execute("ALTER TABLE mandi_registry ADD COLUMN mandi_cess_pct REAL NOT NULL DEFAULT 1.0;")
+                if "commission_cap_pct" not in cols:
+                    conn.execute("ALTER TABLE mandi_registry ADD COLUMN commission_cap_pct REAL NOT NULL DEFAULT 0.0;")
+
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS mandi_registry (
                     mandi_id TEXT PRIMARY KEY,
@@ -58,7 +73,9 @@ class Warehouse:
                     latitude REAL NOT NULL,
                     longitude REAL NOT NULL,
                     is_consumption_hub INTEGER NOT NULL DEFAULT 0,
-                    hub_type TEXT NOT NULL DEFAULT 'production'
+                    hub_type TEXT NOT NULL DEFAULT 'production',
+                    mandi_cess_pct REAL NOT NULL DEFAULT 1.0,
+                    commission_cap_pct REAL NOT NULL DEFAULT 0.0
                 );
 
                 CREATE TABLE IF NOT EXISTS commodity_registry (
@@ -104,6 +121,38 @@ class Warehouse:
                     PRIMARY KEY (corridor_id, commodity_id, reported_date)
                 );
 
+                CREATE TABLE IF NOT EXISTS mandi_weather_facts (
+                    mandi_id TEXT NOT NULL,
+                    observation_date TEXT NOT NULL,
+                    precipitation_mm REAL NOT NULL,
+                    max_temp_c REAL NOT NULL,
+                    weather_flag TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (mandi_id, observation_date),
+                    FOREIGN KEY (mandi_id) REFERENCES mandi_registry(mandi_id)
+                );
+
+                -- Department of Consumer Affairs (DCA) Price Monitoring Division daily retail prices
+                CREATE TABLE IF NOT EXISTS dca_retail_facts (
+                    center_id TEXT NOT NULL,
+                    mandi_id TEXT,
+                    center_name TEXT NOT NULL,
+                    state TEXT NOT NULL,
+                    commodity_id TEXT NOT NULL,
+                    reported_date TEXT NOT NULL,
+                    retail_price_rs_kg REAL NOT NULL,
+                    source_provenance TEXT NOT NULL DEFAULT 'dca_pms',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (center_id, commodity_id, reported_date),
+                    FOREIGN KEY (commodity_id) REFERENCES commodity_registry(commodity_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_dca_date_comm 
+                ON dca_retail_facts(reported_date, commodity_id);
+
+                CREATE INDEX IF NOT EXISTS idx_dca_mandi_comm 
+                ON dca_retail_facts(mandi_id, commodity_id, reported_date);
+
                 -- View for quick national daily overview
                 CREATE VIEW IF NOT EXISTS v_daily_national_summary AS
                 SELECT 
@@ -138,28 +187,266 @@ class Warehouse:
                 JOIN mandi_registry term ON m.terminal_mandi_id = term.mandi_id
                 ORDER BY m.reported_date DESC, m.spread_pct DESC;
 
-                -- High-readability primary market price explorer view
-                CREATE VIEW IF NOT EXISTS v_live_mandi_prices AS
+                -- Windowed day-over-day and week-over-week price movements
+                DROP VIEW IF EXISTS v_live_price_deltas;
+                CREATE VIEW v_live_price_deltas AS
+                SELECT 
+                    mandi_id,
+                    commodity_id,
+                    reported_date,
+                    modal_price,
+                    LAG(modal_price, 1) OVER (
+                        PARTITION BY commodity_id, mandi_id 
+                        ORDER BY reported_date ASC
+                    ) AS prev_day_price,
+                    LAG(reported_date, 1) OVER (
+                        PARTITION BY commodity_id, mandi_id 
+                        ORDER BY reported_date ASC
+                    ) AS prev_day_date,
+                    ROUND(modal_price - LAG(modal_price, 1) OVER (
+                        PARTITION BY commodity_id, mandi_id 
+                        ORDER BY reported_date ASC
+                    ), 2) AS day_change_rs_qtl,
+                    ROUND((modal_price - LAG(modal_price, 1) OVER (
+                        PARTITION BY commodity_id, mandi_id 
+                        ORDER BY reported_date ASC
+                    )) / 100.0, 2) AS day_change_rs_kg,
+                    CASE 
+                        WHEN LAG(modal_price, 1) OVER (
+                            PARTITION BY commodity_id, mandi_id 
+                            ORDER BY reported_date ASC
+                        ) > 0 
+                        THEN ROUND(((modal_price - LAG(modal_price, 1) OVER (
+                            PARTITION BY commodity_id, mandi_id 
+                            ORDER BY reported_date ASC
+                        )) / LAG(modal_price, 1) OVER (
+                            PARTITION BY commodity_id, mandi_id 
+                            ORDER BY reported_date ASC
+                        )) * 100.0, 2)
+                        ELSE 0.0 
+                    END AS day_change_pct,
+                    LAG(modal_price, 7) OVER (
+                        PARTITION BY commodity_id, mandi_id 
+                        ORDER BY reported_date ASC
+                    ) AS prev_week_price,
+                    LAG(reported_date, 7) OVER (
+                        PARTITION BY commodity_id, mandi_id 
+                        ORDER BY reported_date ASC
+                    ) AS prev_week_date,
+                    CASE 
+                        WHEN LAG(modal_price, 7) OVER (
+                            PARTITION BY commodity_id, mandi_id 
+                            ORDER BY reported_date ASC
+                        ) > 0 
+                        THEN ROUND(((modal_price - LAG(modal_price, 7) OVER (
+                            PARTITION BY commodity_id, mandi_id 
+                            ORDER BY reported_date ASC
+                        )) / LAG(modal_price, 7) OVER (
+                            PARTITION BY commodity_id, mandi_id 
+                            ORDER BY reported_date ASC
+                        )) * 100.0, 2)
+                        WHEN LAG(modal_price, 1) OVER (
+                            PARTITION BY commodity_id, mandi_id 
+                            ORDER BY reported_date ASC
+                        ) > 0 
+                        THEN ROUND(((modal_price - LAG(modal_price, 1) OVER (
+                            PARTITION BY commodity_id, mandi_id 
+                            ORDER BY reported_date ASC
+                        )) / LAG(modal_price, 1) OVER (
+                            PARTITION BY commodity_id, mandi_id 
+                            ORDER BY reported_date ASC
+                        )) * 100.0, 2)
+                        ELSE 0.0 
+                    END AS week_change_pct,
+                    CASE
+                        WHEN modal_price > LAG(modal_price, 1) OVER (
+                            PARTITION BY commodity_id, mandi_id 
+                            ORDER BY reported_date ASC
+                        ) * 1.05 THEN 'Spike in ~10d'
+                        WHEN modal_price < LAG(modal_price, 1) OVER (
+                            PARTITION BY commodity_id, mandi_id 
+                            ORDER BY reported_date ASC
+                        ) * 0.95 THEN 'Cooling Down in ~7d'
+                        ELSE 'Stable Corridor'
+                    END AS trend_signal
+                FROM daily_mandi_facts;
+
+                -- Ranked corridor attributions for terminal consumption mandis
+                DROP VIEW IF EXISTS v_corridor_attributions;
+                CREATE VIEW v_corridor_attributions AS
+                WITH ranked_terminal AS (
+                    SELECT 
+                        csm.corridor_id,
+                        csm.commodity_id,
+                        csm.terminal_mandi_id,
+                        csm.reported_date,
+                        csm.origin_mandi_id,
+                        orig.canonical_name AS origin_name,
+                        orig.latitude AS origin_latitude,
+                        orig.longitude AS origin_longitude,
+                        csm.origin_modal_price,
+                        csm.price_spread,
+                        csm.spread_pct,
+                        csm.origin_arrival_shock_z,
+                        csm.stress_level,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY csm.commodity_id, csm.terminal_mandi_id, csm.reported_date 
+                            ORDER BY ABS(csm.origin_arrival_shock_z) DESC
+                        ) AS rn
+                    FROM corridor_stress_metrics csm
+                    JOIN mandi_registry orig ON csm.origin_mandi_id = orig.mandi_id
+                )
+                SELECT * FROM ranked_terminal WHERE rn = 1;
+
+                -- Ranked corridor attributions for origin production mandis
+                DROP VIEW IF EXISTS v_origin_corridor_attributions;
+                CREATE VIEW v_origin_corridor_attributions AS
+                WITH ranked_origin AS (
+                    SELECT 
+                        csm.corridor_id,
+                        csm.commodity_id,
+                        csm.origin_mandi_id,
+                        csm.reported_date,
+                        orig.canonical_name AS origin_name,
+                        orig.latitude AS origin_latitude,
+                        orig.longitude AS origin_longitude,
+                        csm.origin_modal_price,
+                        csm.origin_arrival_shock_z,
+                        csm.stress_level,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY csm.commodity_id, csm.origin_mandi_id, csm.reported_date 
+                            ORDER BY ABS(csm.origin_arrival_shock_z) DESC
+                        ) AS rn
+                    FROM corridor_stress_metrics csm
+                    JOIN mandi_registry orig ON csm.origin_mandi_id = orig.mandi_id
+                )
+                SELECT * FROM ranked_origin WHERE rn = 1;
+
+                -- High-readability primary market price explorer view with empirical DCA retail integration
+                DROP VIEW IF EXISTS v_live_mandi_prices;
+                CREATE VIEW v_live_mandi_prices AS
                 SELECT 
                     f.reported_date AS reported_date,
                     c.name AS commodity,
+                    f.commodity_id AS commodity_id,
+                    m.mandi_id AS mandi_id,
                     m.state AS state,
                     m.district AS district,
                     m.canonical_name AS mandi_name,
                     ROUND(f.modal_price, 2) AS wholesale_price_rs_qtl,
-                    ROUND(f.modal_price / 100.0, 2) AS retail_equivalent_rs_kg,
+                    COALESCE(d.retail_price_rs_kg, ROUND((f.modal_price / 100.0) * 1.35, 2)) AS retail_equivalent_rs_kg,
+                    ROUND(f.modal_price / 100.0, 2) AS wholesale_rs_kg,
+                    m.mandi_cess_pct AS mandi_cess_pct,
+                    m.commission_cap_pct AS commission_cap_pct,
+                    ROUND((f.modal_price / 100.0) * (m.mandi_cess_pct / 100.0), 3) AS statutory_cess_rs_kg,
+                    COALESCE(
+                        ROUND(d.retail_price_rs_kg - (f.modal_price / 100.0) - ((f.modal_price / 100.0) * (m.mandi_cess_pct / 100.0)), 2),
+                        ROUND((f.modal_price / 100.0) * 0.35, 2)
+                    ) AS retail_spread_rs_kg,
+                    CASE 
+                        WHEN d.retail_price_rs_kg IS NOT NULL THEN 'empirical_dca'
+                        ELSE 'synthetic_proxy'
+                    END AS retail_provenance,
                     ROUND(f.min_price, 2) AS min_price_rs_qtl,
                     ROUND(f.max_price, 2) AS max_price_rs_qtl,
                     ROUND(f.max_price - f.min_price, 2) AS intraday_spread_rs_qtl,
                     ROUND(f.arrival_tonnes, 1) AS arrival_tonnes,
                     m.hub_type AS market_type,
                     m.latitude AS latitude,
-                    m.longitude AS longitude
+                    m.longitude AS longitude,
+
+                    -- Dynamic Price Movements (Windowed deltas)
+                    COALESCE(pdel.day_change_rs_kg, 0.0) AS day_change_rs,
+                    COALESCE(pdel.day_change_pct, 0.0) AS day_change_pct,
+                    COALESCE(pdel.week_change_pct, 0.0) AS week_change_pct,
+                    COALESCE(pdel.trend_signal, 'Stable Corridor') AS trend_signal,
+
+                    -- Origin Production Mandi & Corridor Metrics
+                    COALESCE(tc.origin_mandi_id, oc.origin_mandi_id, 
+                        CASE f.commodity_id 
+                            WHEN 'onion' THEN 'mandi_lasalgaon' 
+                            WHEN 'tomato' THEN 'mandi_kolar' 
+                            WHEN 'potato' THEN 'mandi_farrukhabad' 
+                            ELSE 'mandi_lasalgaon' 
+                        END
+                    ) AS origin_mandi_id,
+                    COALESCE(tc.origin_name, oc.origin_name,
+                        CASE f.commodity_id 
+                            WHEN 'onion' THEN 'Lasalgaon' 
+                            WHEN 'tomato' THEN 'Kolar' 
+                            WHEN 'potato' THEN 'Farrukhabad' 
+                            ELSE 'Primary Production Hub' 
+                        END
+                    ) AS origin_mandi_name,
+                    COALESCE(tc.origin_latitude, oc.origin_latitude,
+                        CASE f.commodity_id 
+                            WHEN 'onion' THEN 20.1472 
+                            WHEN 'tomato' THEN 13.1367 
+                            WHEN 'potato' THEN 27.3826 
+                            ELSE 20.0 
+                        END
+                    ) AS origin_latitude,
+                    COALESCE(tc.origin_longitude, oc.origin_longitude,
+                        CASE f.commodity_id 
+                            WHEN 'onion' THEN 74.2253 
+                            WHEN 'tomato' THEN 78.1292 
+                            WHEN 'potato' THEN 79.5828 
+                            ELSE 74.0 
+                        END
+                    ) AS origin_longitude,
+                    COALESCE(tc.origin_modal_price, oc.origin_modal_price, f.modal_price) AS origin_modal_price_rs_qtl,
+                    ROUND(COALESCE(tc.origin_modal_price, oc.origin_modal_price, f.modal_price) / 100.0, 2) AS origin_modal_price_rs_kg,
+                    COALESCE(tc.origin_arrival_shock_z, oc.origin_arrival_shock_z, 0.0) AS origin_arrival_shock_z,
+                    COALESCE(tc.stress_level, oc.stress_level, 'NORMAL') AS corridor_stress_level
                 FROM daily_mandi_facts f
                 JOIN mandi_registry m ON f.mandi_id = m.mandi_id
                 JOIN commodity_registry c ON f.commodity_id = c.commodity_id
+                LEFT JOIN dca_retail_facts d 
+                    ON d.mandi_id = f.mandi_id 
+                    AND d.commodity_id = f.commodity_id 
+                    AND d.reported_date = f.reported_date
+                LEFT JOIN v_live_price_deltas pdel
+                    ON pdel.mandi_id = f.mandi_id
+                    AND pdel.commodity_id = f.commodity_id
+                    AND pdel.reported_date = f.reported_date
+                LEFT JOIN v_corridor_attributions tc
+                    ON tc.terminal_mandi_id = f.mandi_id
+                    AND tc.commodity_id = f.commodity_id
+                    AND tc.reported_date = f.reported_date
+                LEFT JOIN v_origin_corridor_attributions oc
+                    ON oc.origin_mandi_id = f.mandi_id
+                    AND oc.commodity_id = f.commodity_id
+                    AND oc.reported_date = f.reported_date
                 WHERE f.modal_price >= 100.0
                 ORDER BY f.reported_date DESC, f.modal_price DESC;
+
+                -- Official DCA Retail Price Benchmarks vs Terminal Wholesale Modal Prices
+                DROP VIEW IF EXISTS v_dca_retail_benchmarks;
+                CREATE VIEW v_dca_retail_benchmarks AS
+                SELECT
+                    d.reported_date,
+                    c.name AS commodity,
+                    d.center_name AS consumption_center,
+                    d.state,
+                    m.canonical_name AS terminal_mandi,
+                    d.retail_price_rs_kg AS dca_retail_rs_kg,
+                    ROUND(f.modal_price, 2) AS wholesale_modal_rs_qtl,
+                    ROUND(f.modal_price / 100.0, 2) AS wholesale_modal_rs_kg,
+                    COALESCE(m.mandi_cess_pct, 1.0) AS mandi_cess_pct,
+                    COALESCE(m.commission_cap_pct, 0.0) AS commission_cap_pct,
+                    ROUND((f.modal_price / 100.0) * (COALESCE(m.mandi_cess_pct, 1.0) / 100.0), 3) AS statutory_cess_rs_kg,
+                    ROUND(d.retail_price_rs_kg - (f.modal_price / 100.0) - ((f.modal_price / 100.0) * (COALESCE(m.mandi_cess_pct, 1.0) / 100.0)), 2) AS retail_spread_rs_kg,
+                    ROUND(((d.retail_price_rs_kg - (f.modal_price / 100.0) - ((f.modal_price / 100.0) * (COALESCE(m.mandi_cess_pct, 1.0) / 100.0))) / (f.modal_price / 100.0)) * 100.0, 1) AS retail_spread_pct,
+                    d.source_provenance
+                FROM dca_retail_facts d
+                JOIN commodity_registry c ON d.commodity_id = c.commodity_id
+                LEFT JOIN mandi_registry m ON d.mandi_id = m.mandi_id
+                LEFT JOIN daily_mandi_facts f 
+                    ON d.mandi_id = f.mandi_id 
+                    AND d.commodity_id = f.commodity_id 
+                    AND d.reported_date = f.reported_date
+                ORDER BY d.reported_date DESC, d.center_name ASC;
+
 
                 -- Attribution reports table storing evaluated driver behind price moves
                 CREATE TABLE IF NOT EXISTS attribution_reports (
@@ -225,14 +512,16 @@ class Warehouse:
         with self._get_connection() as conn:
             conn.executemany("""
                 INSERT INTO mandi_registry 
-                (mandi_id, canonical_name, state, district, state_lgd_code, district_lgd_code, latitude, longitude, is_consumption_hub, hub_type)
-                VALUES (:mandi_id, :canonical_name, :state, :district, :state_lgd_code, :district_lgd_code, :latitude, :longitude, :is_consumption_hub, :hub_type)
+                (mandi_id, canonical_name, state, district, state_lgd_code, district_lgd_code, latitude, longitude, is_consumption_hub, hub_type, mandi_cess_pct, commission_cap_pct)
+                VALUES (:mandi_id, :canonical_name, :state, :district, :state_lgd_code, :district_lgd_code, :latitude, :longitude, :is_consumption_hub, :hub_type, :mandi_cess_pct, :commission_cap_pct)
                 ON CONFLICT(mandi_id) DO UPDATE SET
                     canonical_name=excluded.canonical_name,
                     latitude=excluded.latitude,
                     longitude=excluded.longitude,
                     is_consumption_hub=excluded.is_consumption_hub,
-                    hub_type=excluded.hub_type;
+                    hub_type=excluded.hub_type,
+                    mandi_cess_pct=excluded.mandi_cess_pct,
+                    commission_cap_pct=excluded.commission_cap_pct;
             """, [m.__dict__ for m in mandis])
 
     def upsert_daily_facts(self, facts: List[DailyFactRecord]) -> int:
@@ -251,6 +540,23 @@ class Warehouse:
                     modal_price=excluded.modal_price;
             """, [f.__dict__ for f in facts])
             return len(facts)
+
+    def upsert_dca_retail_facts(self, facts: List[DCARetailRecord]) -> int:
+        """Batch upsert Department of Consumer Affairs daily retail observations."""
+        if not facts:
+            return 0
+        with self._get_connection() as conn:
+            conn.executemany("""
+                INSERT INTO dca_retail_facts
+                (center_id, mandi_id, center_name, state, commodity_id, reported_date, retail_price_rs_kg, source_provenance)
+                VALUES (:center_id, :mandi_id, :center_name, :state, :commodity_id, :reported_date, :retail_price_rs_kg, :source_provenance)
+                ON CONFLICT(center_id, commodity_id, reported_date) DO UPDATE SET
+                    retail_price_rs_kg=excluded.retail_price_rs_kg,
+                    mandi_id=excluded.mandi_id,
+                    source_provenance=excluded.source_provenance;
+            """, [f.__dict__ for f in facts])
+            return len(facts)
+
 
     def upsert_corridor_stress(self, records: List[CorridorStress]) -> None:
         """Materialize evaluated corridor stress metrics."""
@@ -416,6 +722,70 @@ class Warehouse:
         with self._get_connection() as conn:
             return pl.read_database(query, conn, execute_options={"parameters": params})
 
+    def get_live_price_deltas(
+        self,
+        commodity_id: Optional[str] = None,
+        mandi_id: Optional[str] = None,
+        date: Optional[str] = None,
+        limit: int = 100,
+    ) -> pl.DataFrame:
+        """Query windowed price movements and trend signals from v_live_price_deltas."""
+        clauses = ["1=1"]
+        params = []
+        if commodity_id and commodity_id.lower() != "all":
+            clauses.append("LOWER(commodity_id) = LOWER(?)")
+            params.append(commodity_id)
+        if mandi_id:
+            clauses.append("mandi_id = ?")
+            params.append(mandi_id)
+        if date:
+            clauses.append("reported_date = ?")
+            params.append(date)
+
+        where_sql = " AND ".join(clauses)
+        query = f"""
+            SELECT * FROM v_live_price_deltas
+            WHERE {where_sql}
+            ORDER BY reported_date DESC, ABS(day_change_rs_kg) DESC
+            LIMIT ?;
+        """
+        params.append(limit)
+
+        with self._get_connection() as conn:
+            return pl.read_database(query, conn, execute_options={"parameters": params})
+
+    def get_dca_retail_benchmarks(
+        self,
+        commodity: Optional[str] = None,
+        center: Optional[str] = None,
+        date: Optional[str] = None,
+        limit: int = 100,
+    ) -> pl.DataFrame:
+        """Query retail benchmarks with wholesale spread from v_dca_retail_benchmarks."""
+        clauses = ["1=1"]
+        params = []
+        if commodity and commodity.lower() != "all":
+            clauses.append("LOWER(commodity) = LOWER(?)")
+            params.append(commodity)
+        if center and center.lower() != "all":
+            clauses.append("LOWER(consumption_center) = LOWER(?)")
+            params.append(center)
+        if date:
+            clauses.append("reported_date = ?")
+            params.append(date)
+
+        where_sql = " AND ".join(clauses)
+        query = f"""
+            SELECT * FROM v_dca_retail_benchmarks
+            WHERE {where_sql}
+            LIMIT ?;
+        """
+        params.append(limit)
+
+        with self._get_connection() as conn:
+            return pl.read_database(query, conn, execute_options={"parameters": params})
+
+
     def materialize_attributions(self, target_date: Optional[str] = None) -> int:
         """
         Evaluate and persist price attribution reports for reporting mandis.
@@ -471,6 +841,16 @@ class Warehouse:
                     FROM mandi_weather_facts 
                     WHERE observation_date = ?;
                 """, (target_date,)).fetchall()
+                
+                # If no weather records yet for target_date, pull from Open-Meteo
+                if not w_rows:
+                    self.sync_live_weather(target_date)
+                    w_rows = conn.execute("""
+                        SELECT mandi_id, precipitation_mm, max_temp_c 
+                        FROM mandi_weather_facts 
+                        WHERE observation_date = ?;
+                    """, (target_date,)).fetchall()
+
                 for wr in w_rows:
                     weather_map[wr[0]] = (wr[1] or 0.0, wr[2] or 0.0)
 
@@ -559,4 +939,49 @@ class Warehouse:
 
         with self._get_connection() as conn:
             return pl.read_database(query, conn, execute_options={"parameters": params})
+
+    def sync_live_weather(self, target_date: Optional[str] = None) -> int:
+        """
+        Query Open-Meteo live weather observations across all 25 canonical Mandis
+        and persist them into mandi_weather_facts table.
+        """
+        from datetime import datetime, date
+        from src.attribution import fetch_all_mandis_weather_alerts
+
+        if not target_date:
+            with self._get_connection() as conn:
+                cur = conn.execute("SELECT MAX(reported_date) FROM daily_mandi_facts;")
+                row = cur.fetchone()
+                target_date = row[0] if row and row[0] else date.today().isoformat()
+
+        try:
+            t_date = datetime.strptime(target_date, "%Y-%m-%d").date()
+        except ValueError:
+            t_date = date.today()
+
+        alerts = fetch_all_mandis_weather_alerts(obs_date=t_date)
+        if not alerts:
+            return 0
+
+        with self._get_connection() as conn:
+            # Enforce foreign key safety: only insert for mandis registered in this warehouse
+            cur = conn.execute("SELECT mandi_id FROM mandi_registry;")
+            registered_ids = {row[0] for row in cur.fetchall()}
+
+            filtered_alerts = [a for a in alerts if a["mandi_id"] in registered_ids]
+            if not filtered_alerts:
+                return 0
+
+            conn.executemany("""
+                INSERT INTO mandi_weather_facts 
+                (mandi_id, observation_date, precipitation_mm, max_temp_c, weather_flag)
+                VALUES (:mandi_id, :observation_date, :precipitation_mm, :max_temp_c, :weather_flag)
+                ON CONFLICT(mandi_id, observation_date) DO UPDATE SET
+                    precipitation_mm=excluded.precipitation_mm,
+                    max_temp_c=excluded.max_temp_c,
+                    weather_flag=excluded.weather_flag;
+            """, filtered_alerts)
+
+        return len(filtered_alerts)
+
 

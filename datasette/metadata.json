@@ -13,12 +13,25 @@
           "facets": ["commodity", "severity", "crop_season", "state"]
         },
         "v_live_mandi_prices": {
-          "title": "Live Mandi Prices Explorer (Clean & Formatted)",
-          "description": "Human-readable view of daily wholesale modal prices, retail equivalent (Rs/kg), and intraday spreads across Indian Mandis.",
+          "title": "Live Mandi Prices Explorer (Empirical DCA & Wholesale)",
+          "description": "Human-readable view of daily wholesale modal prices, empirical DCA retail benchmark (Rs/kg), retail spread, windowed deltas, and joined corridor attributions.",
           "sort_desc": "reported_date",
-          "facets": ["commodity", "state", "district"]
+          "facets": ["commodity", "state", "district", "retail_provenance", "trend_signal", "corridor_stress_level"]
+        },
+        "v_live_price_deltas": {
+          "title": "Live Price Deltas & Trend Signals (Windowed)",
+          "description": "Mathematical window functions (LAG OVER) calculating exact day-over-day and week-over-week modal price deltas and trend classifications.",
+          "sort_desc": "reported_date",
+          "facets": ["commodity_id", "trend_signal"]
+        },
+        "v_dca_retail_benchmarks": {
+          "title": "DCA Daily Retail Benchmarks vs Terminal Wholesale",
+          "description": "Official Department of Consumer Affairs (DCA) Price Monitoring Division retail prices joined directly with APMC terminal wholesale modal prices.",
+          "sort_desc": "reported_date",
+          "facets": ["commodity", "consumption_center", "state", "source_provenance"]
         },
         "v_active_corridor_stress": {
+
           "title": "Strategic Corridor Stress Alerts",
           "description": "Active arbitrage spreads and supply slump Z-scores across production and terminal Mandis.",
           "sort_desc": "reported_date",
