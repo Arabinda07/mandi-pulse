@@ -75,7 +75,15 @@ def run_daily_job() -> None:
 
     logger.info(f"Total live mandi facts processed: {total_facts}")
 
-    # 3. Fetch Weather Shocks for Active Production Districts
+    # 3. Ingest Department of Consumer Affairs (DCA) Retail Prices
+    logger.info("Ingesting Department of Consumer Affairs (DCA) retail price benchmarks...")
+    try:
+        dca_count = engine.ingest_dca_retail_prices()
+        logger.info(f"DCA retail facts processed: {dca_count} records.")
+    except Exception as e:
+        logger.warning(f"DCA retail ingestion note: {e}")
+
+    # 4. Fetch Weather Shocks for Active Production Districts
     logger.info("Fetching district meteorological records from Open-Meteo...")
     weather_adapter = MandiWeatherAdapter()
     today_str = date.today().isoformat()
@@ -103,7 +111,7 @@ def run_daily_job() -> None:
             except Exception as e:
                 logger.warning(f"Could not fetch weather for {hub.canonical_name}: {e}")
 
-    # 4. Materialize Strategic Corridor Stress Metrics
+    # 5. Materialize Strategic Corridor Stress Metrics
     logger.info("Evaluating strategic inter-mandi corridor volatility...")
     try:
         corridor_count = engine.refresh_corridor_stress_metrics()
@@ -111,7 +119,7 @@ def run_daily_job() -> None:
     except Exception as e:
         logger.warning(f"Corridor volatility calculation note: {e}")
 
-    # 5. Compute & Persist Price Movement Attributions
+    # 6. Compute & Persist Price Movement Attributions
     logger.info("Computing automated price attributions (Cultural Festivals + Weather + Harvest Cycles)...")
     attr_count = wh.materialize_attributions()
     logger.info(f"Materialized {attr_count} price attribution reports.")

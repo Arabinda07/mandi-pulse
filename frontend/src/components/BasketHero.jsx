@@ -4,7 +4,7 @@ import React from 'react';
  * BasketHero Component
  * Asymmetric hero card calculating consolidated weekly kitchen staples (1kg Tomato + 2kg Onion + 2kg Potato).
  */
-export function BasketHero({ heroData, mode }) {
+export function BasketHero({ heroData, mode, reportingDate }) {
   if (!heroData) return null;
 
   const isHousehold = mode === 'household';
@@ -42,7 +42,7 @@ export function BasketHero({ heroData, mode }) {
         <div className="basket-eyebrow">
           <span>Weekly Staples</span>
           <span>•</span>
-          <span>Early Price Alert</span>
+          <span>{reportingDate ? `Reported: ${reportingDate}` : 'Early Price Alert'}</span>
         </div>
         <h1 className="basket-headline">
           The Essential Kitchen Basket

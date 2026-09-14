@@ -4,7 +4,7 @@
  * Gracefully falls back to offline reference data if backend is not running.
  */
 
-import { METRO_HUBS, REFERENCE_MARKET_DATA } from './fallbackData';
+import { REFERENCE_MARKET_DATA } from './fallbackData';
 import { generateShoppingAdvice, generateBasketVerdict } from './adviceGenerator';
 
 const METRO_MANDI_IDS = {
@@ -167,14 +167,34 @@ export async function fetchMarketData(metroId = 'delhi') {
       verdict_status: basketVerdict.verdict_status,
     };
 
+    // Determine dynamic reporting date from the freshest row
+    const latestRawDate = rows.find(r => r.reported_date)?.reported_date;
+    let formattedReportingDate = fallback.reporting_date;
+    if (latestRawDate) {
+      try {
+        const parts = latestRawDate.split('-');
+        if (parts.length === 3) {
+          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+          formattedReportingDate = d.toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+          });
+        }
+      } catch {
+        formattedReportingDate = latestRawDate;
+      }
+    }
+
     return {
       data: {
         ...fallback,
+        reporting_date: formattedReportingDate,
         basket_hero: updatedBasketHero,
         commodities: enrichedCommodities,
       },
       isLiveBackend: true,
-      sourceLabel: 'Live Agmarknet & DCA Data',
+      sourceLabel: `Live Agmarknet & DCA Data (${formattedReportingDate})`,
     };
 
   } catch (err) {

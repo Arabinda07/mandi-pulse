@@ -96,7 +96,7 @@ export function App() {
         {market && (
           <>
             {/* Component 2: Weekly Kitchen Basket Hero */}
-            <BasketHero heroData={market.basket_hero} mode={mode} />
+            <BasketHero heroData={market.basket_hero} mode={mode} reportingDate={market.reporting_date} />
 
             {/* Component 3: Tier 1 Commodities Grid */}
             <CommodityGrid commodities={market.commodities} mode={mode} />
