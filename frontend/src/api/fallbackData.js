@@ -1,7 +1,7 @@
 /**
  * Mandi Pulse - Reference Market Snapshot & Fallback Provider
  * Synchronized automatically from SQLite Warehouse (v_live_mandi_prices).
- * Generated at: 2026-11-14 13:45:31
+ * Generated at: 2026-11-15 14:15:11
  */
 
 export const METRO_HUBS = [
